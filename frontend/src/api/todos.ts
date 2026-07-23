@@ -14,3 +14,24 @@ export async function getTodos(): Promise<Todo[]> {
   const data = await apiFetch<TodoListResponse>('/todos');
   return data.todos;
 }
+
+/** Response for the bulk clear-completed endpoint: `{ deleted: <int> }`. */
+interface ClearCompletedResponse {
+  deleted: number;
+}
+
+/**
+ * Clear-completed bulk delete (FR-9, AD-7): `DELETE /api/todos/completed` with a
+ * body carrying the exact id snapshot `{ ids: [...] }` captured at click time.
+ * The server deletes only those ids that are still completed and returns
+ * `200 { deleted }` (not 204). The client always sends the snapshot so a Todo
+ * completed *after* the click is never in it and never cleared.
+ */
+export async function clearCompleted(
+  ids: string[],
+): Promise<ClearCompletedResponse> {
+  return apiFetch<ClearCompletedResponse>('/todos/completed', {
+    method: 'DELETE',
+    body: JSON.stringify({ ids }),
+  });
+}

@@ -4,15 +4,35 @@
 // only screen.
 
 import { Backdrop } from './backdrop/Backdrop';
+import { Footer } from './components/Footer';
 import { Panel } from './components/Panel';
 import { TodoList } from './components/TodoList';
+import { UndoToast } from './components/UndoToast';
+import { useClearCompleted } from './hooks/useClearCompleted';
 
 export function App() {
+  // Clear-completed deferred-commit flow (FR-9, AD-7). Owned here so the Footer
+  // (rendered into the panel footer slot) and the UndoToast (rendered as a
+  // bottom overlay) share one window without useTodos being touched.
+  const clear = useClearCompleted();
+
   return (
     <>
       <Backdrop />
       <main className="orbit-app">
-        <Panel>
+        <Panel
+          footerSlot={<Footer onClear={clear.clear} error={clear.error} />}
+          toastSlot={
+            clear.pending ? (
+              <UndoToast
+                count={clear.pending.count}
+                onUndo={clear.undo}
+                onPause={clear.pauseTimer}
+                onResume={clear.resumeTimer}
+              />
+            ) : null
+          }
+        >
           <TodoList />
         </Panel>
       </main>
