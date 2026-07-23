@@ -3,16 +3,17 @@
 // FAKE TIMERS drive the ~6s auto-dismiss and hover-pause; the API layer is
 // mocked so no real network / Postgres is touched.
 
-import { act, fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, renderHook, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ReactNode } from 'react';
 
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { clearCompleted, getTodos } from '../api/todos';
 import { App } from '../App';
 import { renderWithClient } from '../test-utils';
 import type { Todo } from '../types';
-import { CLEAR_UNDO_MS } from './useClearCompleted';
+import { CLEAR_UNDO_MS, useClearCompleted } from './useClearCompleted';
 import { todosQueryKey } from './useTodos';
 
 vi.mock('../api/todos');
@@ -216,5 +217,73 @@ describe('Clear-completed deferred commit (AD-7)', () => {
     );
     // Reconciled to server truth via a refetch.
     expect(getTodosMock).toHaveBeenCalled();
+  });
+});
+
+// The Footer only renders the "Clear completed" button when completedCount > 0,
+// so the hook's inert-guard and resume-guard branches are unreachable through
+// the UI. These drive the hook directly to prove the guard contract: clear()
+// never opens a window (nor calls the server) when there is nothing valid to
+// clear, and resumeTimer() never restarts a countdown that shouldn't exist.
+describe('useClearCompleted guard contract (hook-level)', () => {
+  function hookWithClient(seed?: Todo[]) {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, refetchOnWindowFocus: false, staleTime: Infinity },
+        mutations: { retry: false },
+      },
+    });
+    if (seed) client.setQueryData(todosQueryKey, seed);
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    return { client, ...renderHook(() => useClearCompleted(), { wrapper }) };
+  }
+
+  it('clear() is inert when the List cache is empty (no snapshot, no timer, no toast)', () => {
+    const { result } = hookWithClient(); // no seeded list
+    act(() => result.current.clear());
+
+    expect(result.current.pending).toBeNull();
+    advance(CLEAR_UNDO_MS * 2);
+    expect(clearCompletedMock).not.toHaveBeenCalled();
+  });
+
+  it('clear() is inert when nothing is completed (zero-completed snapshot short-circuits)', () => {
+    const { result } = hookWithClient([
+      makeTodo({ description: 'active only' }),
+    ]);
+    act(() => result.current.clear());
+
+    expect(result.current.pending).toBeNull();
+    advance(CLEAR_UNDO_MS * 2);
+    expect(clearCompletedMock).not.toHaveBeenCalled();
+  });
+
+  it('resumeTimer() does nothing when there is no open undo window', () => {
+    const { result } = hookWithClient([
+      makeTodo({ description: 'done', completed: true }),
+    ]);
+    // No clear() called → pending is null → resume must be a no-op.
+    act(() => result.current.resumeTimer());
+
+    expect(result.current.pending).toBeNull();
+    advance(CLEAR_UNDO_MS * 2);
+    expect(clearCompletedMock).not.toHaveBeenCalled();
+  });
+
+  it('resumeTimer() after undo() never restarts the committed (cancelled) window', () => {
+    const { result } = hookWithClient([
+      makeTodo({ description: 'done', completed: true }),
+    ]);
+    act(() => result.current.clear());
+    expect(result.current.pending).not.toBeNull();
+
+    act(() => result.current.undo()); // marks the window committed, no server call
+    // A stray resume (e.g. a late blur/unhover event) must not revive it.
+    act(() => result.current.resumeTimer());
+
+    advance(CLEAR_UNDO_MS * 2);
+    expect(clearCompletedMock).not.toHaveBeenCalled();
   });
 });

@@ -34,8 +34,9 @@ testpaths = ["tests"]
 addopts = "-ra"
 python_files = ["test_*.py"]
 
-# Branch coverage enabled now; the gate stays REPORT-ONLY at this stage.
-# The enforcing >=70% meaningful-coverage gate lands in Story 6.2 (see sprint-status.yaml).
+# Branch coverage of real application logic, ENFORCING at >=70% (Story 6.2).
+# The meaningful-coverage exclusions (generated code, config, Alembic migrations)
+# are applied via `omit` below; three.js visual tuning lives in the frontend.
 [tool.coverage.run]
 branch = true
 source = ["app"]
@@ -52,6 +53,11 @@ omit = [
 [tool.coverage.report]
 show_missing = true
 skip_covered = false
+# ENFORCING gate (Story 6.2): fail the run if meaningful (branch) coverage of the
+# real application logic drops below 70%. `precision` keeps the reported figure
+# honest to two decimals rather than rounding a 69.9x up to 70.
+fail_under = 70
+precision = 2
 # Meaningful-coverage exclusions: generated code, config boilerplate, defensive
 # guards, and TYPE_CHECKING-only imports. (three.js tuning exclusions live in the
 # frontend Vitest config.)
