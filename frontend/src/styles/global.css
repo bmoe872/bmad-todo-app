@@ -89,20 +89,6 @@ body {
   color: var(--color-ink-primary);
 }
 
-/* Add-input slot placeholder (real input arrives in Story 3.2). */
-.orbit-add-slot {
-  display: flex;
-  align-items: center;
-  min-height: 52px;
-  padding: 0 var(--space-4);
-  font-size: var(--type-input-size);
-  line-height: var(--type-input-line);
-  color: var(--add-input-placeholder);
-  background-color: var(--add-input-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--add-input-radius);
-}
-
 /* Footer slot placeholder (real footer arrives in Story 3.4). */
 .orbit-footer-slot:empty {
   display: none;
@@ -238,5 +224,42 @@ body {
 /* ---- Focus visibility ---- (2px ring, contrast derived from the panel) */
 :where(button, a, input, [tabindex]):focus-visible {
   outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* Story 3.2: add-input
+   The live capture field replacing the Story 3.1 placeholder slot. Consumes
+   the --add-input-* tokens (defined in tokens.css for this story) and matches
+   the placeholder's 52px height / horizontal padding for visual continuity.
+   The inline validation/error message reuses .orbit-inline-error. */
+.orbit-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.orbit-add-input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 var(--space-4);
+  font-family: var(--font-family-base);
+  font-size: var(--type-input-size);
+  font-weight: var(--type-input-weight);
+  line-height: var(--type-input-line);
+  color: var(--add-input-text);
+  background-color: var(--add-input-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--add-input-radius);
+}
+
+.orbit-add-input::placeholder {
+  color: var(--add-input-placeholder);
+  /* Placeholder must not read as entered text; keep it fully opaque-managed
+     by the token, not the UA's default reduced opacity. */
+  opacity: 1;
+}
+
+.orbit-add-input:focus-visible {
+  outline: 2px solid var(--add-input-focus-ring);
   outline-offset: 2px;
 }
