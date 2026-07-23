@@ -53,6 +53,7 @@
 
 generated: 2026-07-23
 last_updated: 2026-07-23
+# note: Story 3.5 completed backlog -> ready-for-dev -> in-progress -> review -> done on 2026-07-23 (full BMAD cycle: create-story, dev-story, clean code-review). Epic 3 -> done (all 5 stories done).
 # note: Story 3.1 completed ready-for-dev -> in-progress -> review -> done on 2026-07-23 (full BMAD cycle). Epic 3 -> in-progress (first story).
 # note: Story 2.1 completed ready-for-dev -> in-progress -> review -> done on 2026-07-23 (full BMAD cycle). Epic 2 -> in-progress (first story).
 project: nearform_todo_app
@@ -77,12 +78,12 @@ development_status:
   epic-2-retrospective: optional
 
   # --- Epic 3: Core Todo Experience (Frontend) ---
-  epic-3: in-progress
+  epic-3: done
   3-1-panel-shell-design-tokens-api-client-and-list-view-with-loading-empty-error-states: done
   3-2-add-input-with-optimistic-create-and-client-validation: done
   3-3-todo-row-toggle-completion-in-place-and-delete: done
   3-4-footer-bar-clear-completed-and-deferred-undo-toast: done
-  3-5-cross-cutting-keyboard-navigation-screen-reader-semantics-and-responsive-layout: backlog
+  3-5-cross-cutting-keyboard-navigation-screen-reader-semantics-and-responsive-layout: done
   epic-3-retrospective: optional
 
   # --- Epic 4: Space Backdrop & Graceful Degradation ---

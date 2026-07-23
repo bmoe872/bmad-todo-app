@@ -262,3 +262,27 @@ calls that a human owned.
   spawn sub-agents, so parallelism is orchestrated one level up; each worktree
   re-ran `npm ci` (node_modules gitignored). AD-7 deferred-commit (undo = client
   timer cancel, single DELETE on dismiss with id snapshot) built cleanly in 3.4.
+
+- **2026-07-23 — Story 3.5 (cross-cutting a11y / keyboard / responsive):** The
+  final Epic 3 story ran as a single AI agent through the full BMAD cycle
+  (create-story, dev-story, clean code-review) as a hardening pass over the
+  already-merged 3.1–3.4 frontend — enhance/verify, not rebuild. What worked:
+  the surface-area was tiny and additive because 3.1–3.4 had already done most
+  per-component a11y (labeled list/rows, polite count live region, toast focus-
+  pause + real Undo button, global `:focus-visible` ring, reduced-motion CSS,
+  desktop-only autofocus). The only genuine code gaps were (1) associating
+  errors with their control via `aria-describedby`/`aria-invalid` (added an
+  optional `id` to `InlineError`, wired from the add-input and row checkbox only
+  while a message shows) and (2) keyboard-safe delete focus (move focus to a
+  surviving sibling delete → else the add-input BEFORE optimistic removal, gated
+  on the delete button holding focus). Everything else was locked in with tests
+  rather than changed. jsdom limitation owned by the agent: it neither lays out
+  CSS nor implements sequential Tab navigation, so tab order was asserted as
+  DOM/reading order + "no positive tabindex", and focus-ring / reduced-motion /
+  hover-reveal / responsive-frame were asserted structurally against the
+  injected stylesheet text (the `tokens.test.ts` pattern). Human/Epic-6 judgment
+  deferred: the axe-core zero-critical WCAG AA gate and Playwright keyboard-only
+  E2E walkthrough (Story 6.1), 200%-zoom/real-viewport visual proof (6.3), and
+  flipping the coverage gate to enforcing (6.2). Full suite green post-change
+  (83 Vitest tests, up from 56; 97.22% stmts / 86.79% branch, report-only), lint
+  clean, production build OK. Epic 3 is now complete.

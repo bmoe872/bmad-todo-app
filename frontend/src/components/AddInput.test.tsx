@@ -7,6 +7,7 @@ import { OPTIMISTIC_ID_PREFIX } from '../hooks/useCreateTodo';
 import type { Todo } from '../types';
 import { renderWithClient } from '../test-utils';
 import {
+  ADD_INPUT_ERROR_ID,
   AddInput,
   CREATE_ERROR_MESSAGE,
   EMPTY_MESSAGE,
@@ -192,6 +193,58 @@ describe('AddInput — keyboard', () => {
     expect(createTodoMock).not.toHaveBeenCalled();
     // No lingering validation/error message either.
     expect(screen.queryByText(EMPTY_MESSAGE)).not.toBeInTheDocument();
+  });
+});
+
+describe('AddInput — error association + invalid state (Story 3.5, AC6)', () => {
+  it('has no describedby/invalid state while valid', () => {
+    renderWithClient(<AddInput />);
+    const el = input();
+    expect(el).not.toHaveAttribute('aria-describedby');
+    // aria-invalid is either absent or "false" while valid.
+    expect(el.getAttribute('aria-invalid')).not.toBe('true');
+  });
+
+  it('associates the validation message via aria-describedby and marks the field invalid', async () => {
+    renderWithClient(<AddInput />);
+
+    fireEvent.submit(form());
+
+    const alert = await screen.findByRole('alert');
+    const el = input();
+    expect(el).toHaveAttribute('aria-invalid', 'true');
+    expect(el).toHaveAttribute('aria-describedby', ADD_INPUT_ERROR_ID);
+    // The described element is the rendered error (role="alert"), so a screen
+    // reader reads it when focus is on the input, plus the live announcement.
+    expect(alert).toHaveAttribute('id', ADD_INPUT_ERROR_ID);
+    expect(alert).toHaveTextContent(EMPTY_MESSAGE);
+  });
+
+  it('associates the create-error message too (server rollback path)', async () => {
+    createTodoMock.mockRejectedValue(new Error('server said no'));
+    renderWithClient(<AddInput />);
+
+    fireEvent.change(input(), { target: { value: 'flaky task' } });
+    fireEvent.submit(form());
+
+    await screen.findByText(CREATE_ERROR_MESSAGE);
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveAttribute('id', ADD_INPUT_ERROR_ID);
+    expect(input()).toHaveAttribute('aria-describedby', ADD_INPUT_ERROR_ID);
+  });
+
+  it('drops the association and invalid flag when Escape clears the message', async () => {
+    renderWithClient(<AddInput />);
+
+    fireEvent.submit(form());
+    await screen.findByText(EMPTY_MESSAGE);
+    expect(input()).toHaveAttribute('aria-invalid', 'true');
+
+    fireEvent.keyDown(input(), { key: 'Escape' });
+
+    expect(screen.queryByText(EMPTY_MESSAGE)).not.toBeInTheDocument();
+    expect(input()).not.toHaveAttribute('aria-describedby');
+    expect(input().getAttribute('aria-invalid')).not.toBe('true');
   });
 });
 

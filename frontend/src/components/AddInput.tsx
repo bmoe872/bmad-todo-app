@@ -26,6 +26,12 @@ export const CREATE_ERROR_MESSAGE = "Couldn't save that — try again.";
 /** Max description length, measured on the trimmed string (mirrors the server). */
 export const MAX_LENGTH = 500;
 
+/**
+ * Stable id linking the input to its validation/create error via
+ * `aria-describedby` (Story 3.5, AC6). Only wired while a message is showing.
+ */
+export const ADD_INPUT_ERROR_ID = 'add-input-error';
+
 /** True only on a non-touch (fine-pointer, hover-capable) device — desktop. */
 function isDesktopPointer(): boolean {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -100,10 +106,14 @@ export function AddInput() {
         value={text}
         onChange={(event) => setText(event.target.value)}
         onKeyDown={handleKeyDown}
+        // Associate + flag the field only while a message is showing, so a
+        // screen reader reads the error when focus is on the input (AC6).
+        aria-invalid={message ? true : undefined}
+        aria-describedby={message ? ADD_INPUT_ERROR_ID : undefined}
         // Single-line capture; the server also rejects embedded newlines.
         autoComplete="off"
       />
-      {message ? <InlineError message={message} /> : null}
+      {message ? <InlineError id={ADD_INPUT_ERROR_ID} message={message} /> : null}
     </form>
   );
 }

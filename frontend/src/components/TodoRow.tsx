@@ -31,11 +31,33 @@ export function TodoRow({ todo }: TodoRowProps) {
   const { toggle, remove } = useTodoMutations();
 
   const textId = `todo-text-${todo.id}`;
+  const errorId = `todo-error-${todo.id}`;
 
   // Surface a row-scoped inline error when a write fails. A delete that 404s is
   // "already-gone", not a failure, so it never shows an error.
   const showError =
     toggle.isError || (remove.isError && !isAlreadyGone(remove.error));
+
+  // Keyboard-safe delete (Story 3.5, AC3): when the row is deleted WHILE its
+  // delete button holds focus (keyboard case), move focus to a surviving target
+  // BEFORE the optimistic removal so focus is never dropped to <body>. Preferred
+  // target: the next row's delete button, else the previous row's, else the
+  // add-input. The mouse path (button not focused) is left untouched.
+  function handleDelete(event: React.MouseEvent<HTMLButtonElement>) {
+    const button = event.currentTarget;
+    if (document.activeElement === button) {
+      const rows = Array.from(document.querySelectorAll('.orbit-row'));
+      const li = button.closest('.orbit-row');
+      const index = li ? rows.indexOf(li) : -1;
+      const sibling =
+        index >= 0 ? (rows[index + 1] ?? rows[index - 1] ?? null) : null;
+      const target =
+        (sibling?.querySelector('.orbit-row__delete') as HTMLElement | null) ??
+        (document.querySelector('.orbit-add-input') as HTMLElement | null);
+      target?.focus();
+    }
+    remove.mutate({ id: todo.id });
+  }
 
   return (
     <li className="orbit-row" data-completed={todo.completed} data-testid="todo-row">
@@ -52,6 +74,9 @@ export function TodoRow({ todo }: TodoRowProps) {
               toggle.mutate({ id: todo.id, completed: event.target.checked });
             }}
             aria-labelledby={textId}
+            // Point at the row error only while it is showing, so a screen
+            // reader hears it when focus is on the checkbox (AC6).
+            aria-describedby={showError ? errorId : undefined}
             data-testid="todo-checkbox"
           />
         </label>
@@ -66,16 +91,14 @@ export function TodoRow({ todo }: TodoRowProps) {
         <button
           type="button"
           className="orbit-row__delete"
-          onClick={() => {
-            remove.mutate({ id: todo.id });
-          }}
+          onClick={handleDelete}
           aria-label={`Delete ${todo.description}`}
           data-testid="todo-delete"
         />
       </div>
 
       {showError ? (
-        <InlineError message={ACTION_ERROR_MESSAGE} />
+        <InlineError id={errorId} message={ACTION_ERROR_MESSAGE} />
       ) : null}
     </li>
   );

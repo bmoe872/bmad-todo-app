@@ -167,6 +167,100 @@ describe('TodoRow — delete', () => {
   });
 });
 
+describe('TodoRow — error association (Story 3.5, AC6)', () => {
+  it('links the checkbox to the row error via aria-describedby when a write fails', async () => {
+    const todo = makeTodo({ description: 'file taxes', completed: false });
+    store = [todo];
+    await renderList();
+
+    toggleTodoMock.mockRejectedValueOnce(new Error('boom'));
+
+    const checkbox = screen.getByRole('checkbox', { name: 'file taxes' });
+    // No association while healthy.
+    expect(checkbox).not.toHaveAttribute('aria-describedby');
+
+    fireEvent.click(checkbox);
+
+    const alert = await screen.findByRole('alert');
+    const describedby = checkbox.getAttribute('aria-describedby');
+    expect(describedby).toBeTruthy();
+    // The described element is the rendered inline error (role="alert").
+    expect(alert).toHaveAttribute('id', describedby!);
+    expect(alert).toHaveTextContent(ACTION_ERROR_MESSAGE);
+    // The label association (name from the description) is untouched.
+    expect(checkbox).toHaveAccessibleName('file taxes');
+  });
+});
+
+describe('TodoRow — keyboard-safe delete focus management (Story 3.5, AC3)', () => {
+  it('moves focus to the next row\'s delete when a focused row is deleted by keyboard', async () => {
+    store = [
+      makeTodo({ description: 'first' }),
+      makeTodo({ description: 'second' }),
+    ];
+    await renderList();
+
+    const firstDelete = screen.getByRole('button', { name: 'Delete first' });
+    const secondDelete = screen.getByRole('button', { name: 'Delete second' });
+
+    // Simulate keyboard use: the delete button holds focus, then is activated.
+    firstDelete.focus();
+    expect(document.activeElement).toBe(firstDelete);
+    fireEvent.click(firstDelete);
+
+    // Row removed optimistically; focus is NOT stranded on <body>.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Delete first' }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(document.activeElement).toBe(secondDelete);
+  });
+
+  it('falls back to the add-input when the last row is deleted by keyboard', async () => {
+    store = [makeTodo({ description: 'only row' })];
+    // Render the list alongside a stand-in add-input (App wires the real
+    // AddInput above the list); the handler targets `.orbit-add-input`.
+    const utils = renderWithClient(
+      <>
+        <input className="orbit-add-input" aria-label="Add a todo" />
+        <TodoList />
+      </>,
+    );
+    await screen.findAllByTestId('todo-row');
+
+    const del = screen.getByRole('button', { name: 'Delete only row' });
+    del.focus();
+    fireEvent.click(del);
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('todo-row')).not.toBeInTheDocument(),
+    );
+    expect(document.activeElement).toBe(
+      utils.container.querySelector('.orbit-add-input'),
+    );
+  });
+
+  it('does not manage focus for a mouse delete (button not focused first)', async () => {
+    store = [
+      makeTodo({ description: 'alpha' }),
+      makeTodo({ description: 'beta' }),
+    ];
+    await renderList();
+
+    // No prior .focus() → activeElement is <body>; the mouse path must not
+    // throw and must still remove the row.
+    fireEvent.click(screen.getByRole('button', { name: 'Delete alpha' }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Delete alpha' }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(deleteTodoMock).toHaveBeenCalled();
+  });
+});
+
 describe('TodoRow — interaction boundaries & a11y', () => {
   it('does nothing when the description text is clicked (no toggle, no delete)', async () => {
     const todo = makeTodo({ description: 'read the docs', completed: false });

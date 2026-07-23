@@ -5,14 +5,21 @@
 
 interface InlineErrorProps {
   message: string;
+  /**
+   * Optional stable id for the error container. Lets an associated control
+   * point at this message via `aria-describedby` (Story 3.5, AC6) so screen
+   * readers read the error when focus is on the control — in addition to the
+   * `role="alert"` live announcement. Omit for standalone (e.g. load-error) use.
+   */
+  id?: string;
   /** Label for the retry affordance; when omitted, no retry button is shown. */
   retryLabel?: string;
   onRetry?: () => void;
 }
 
-export function InlineError({ message, retryLabel, onRetry }: InlineErrorProps) {
+export function InlineError({ id, message, retryLabel, onRetry }: InlineErrorProps) {
   return (
-    <div className="orbit-inline-error" role="alert" data-testid="inline-error">
+    <div id={id} className="orbit-inline-error" role="alert" data-testid="inline-error">
       <span>{message}</span>
       {retryLabel && onRetry ? (
         <button
