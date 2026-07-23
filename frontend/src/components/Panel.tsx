@@ -3,21 +3,19 @@
 // shadow, centered column capped at 560px over the void.
 //
 // It composes the IA zones top → bottom (EXPERIENCE.md): Title → add-input slot
-// → list → footer slot. The add-input and footer are rendered as clean
-// placeholder slots here; their real behavior arrives in Stories 3.2 and 3.4.
+// → list → footer slot. The add-input is the live AddInput (Story 3.2); the
+// footer is still a clean placeholder slot until Story 3.4.
+
+import { AddInput } from './AddInput';
 
 interface PanelProps {
   /** The List region (TodoList) — the only wired zone in Story 3.1. */
   children: React.ReactNode;
-  /** Add-input zone (Story 3.2). Defaults to a non-interactive placeholder. */
+  /** Add-input zone. Defaults to the live AddInput (Story 3.2). */
   addSlot?: React.ReactNode;
   /** Footer zone (Story 3.4). */
   footerSlot?: React.ReactNode;
 }
-
-// Add-input placeholder copy comes from the DESIGN.md add-input spec; the real
-// interactive field (and this exact placeholder attribute) lands in Story 3.2.
-const ADD_INPUT_PLACEHOLDER = 'What needs doing?';
 
 export function Panel({ children, addSlot, footerSlot }: PanelProps) {
   return (
@@ -26,11 +24,7 @@ export function Panel({ children, addSlot, footerSlot }: PanelProps) {
         Todos
       </h1>
 
-      {addSlot ?? (
-        <div className="orbit-add-slot" aria-hidden="true" data-testid="add-input-slot">
-          {ADD_INPUT_PLACEHOLDER}
-        </div>
-      )}
+      {addSlot ?? <AddInput />}
 
       {children}
 
