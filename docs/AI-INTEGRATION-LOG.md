@@ -1,0 +1,158 @@
+# AI Integration Log — nearform_todo_app
+
+This log records how AI assistance was used to build this project. It is seeded in
+Story 1.1 and appended to incrementally as each story is delivered, then finalized
+in Story 6.4. Each section below accumulates dated entries over the life of the
+project; keep entries concise, concrete, and honest (including where AI fell short).
+
+---
+
+## 1. Agent usage
+
+How AI coding agents were used to plan, scaffold, and implement work — which
+agents/workflows, what they produced, and how their output was reviewed.
+
+- **2026-07-23 — Story 1.1 (Repository skeleton and tooling baseline):** Ran the
+  BMAD story cycle (`create-story` → `dev-story` → `code-review`). The agent
+  scaffolded the `backend/`, `frontend/`, and `e2e/` trees per the architecture
+  Source Tree, wrote the pinned `pyproject.toml` / `package.json` manifests, the
+  root `Makefile`, placeholder tests for all three packages, and this log. All
+  runner output was executed and verified, not assumed.
+
+- **2026-07-23 — Story 1.1 (code review):** Ran the `code-review` workflow with
+  three adversarial layers (Blind Hunter, Edge Case Hunter, Acceptance Auditor).
+  It caught a real defect — `make install-backend` created the venv with the
+  repo-root `python3` (3.9) rather than the pyenv-pinned 3.12 — which was fixed
+  and re-verified. All acceptance criteria confirmed satisfied.
+
+- **2026-07-23 — Story 1.2 (FastAPI app factory, health/readiness, DB session
+  foundation):** Ran the BMAD story cycle (`create-story` → `dev-story` →
+  `code-review`). The agent implemented the `create_app()` factory, the `/api`
+  router mount, centralized AD-5 error-envelope handlers (including the
+  `RequestValidationError` remap), `pydantic-settings` config, structured JSON
+  request logging with a request id, the synchronous SQLAlchemy 2.0 + psycopg 3
+  engine/session with a per-request `get_db` dependency (AD-12), the Alembic
+  baseline, and `GET /api/health`. Integration tests ran against a real
+  Postgres 17 provisioned as a lightweight standalone container (NOT the full
+  Epic-5 compose stack). All runner output was executed and verified.
+
+- **2026-07-23 — Story 1.3 (GitHub Actions CI pipeline):** Ran the BMAD story
+  cycle (`create-story` → `dev-story` → `code-review`). The agent authored
+  `.github/workflows/ci.yml` (three jobs: `backend` lint + unit/integration +
+  coverage against a `postgres:17` service container; `frontend` lint + unit +
+  coverage; `build-images` build-only, guarded) and added `--cov-report=xml` to
+  the `coverage-backend` Makefile target for a reproducible coverage artifact.
+  The workflow invokes only the existing CI-agnostic Makefile targets — no
+  lint/test logic duplicated in YAML. Since this environment is not a git repo
+  and has no GitHub remote, the workflow was NOT executed on GitHub; instead the
+  YAML was parsed for well-formedness and every command the workflow invokes was
+  run locally the same way CI runs it (backend against a real Postgres 17 mirror
+  on :5432, torn down afterward). Results: backend 11 passed (2 integration + 1
+  alembic migration cycle against real Postgres) at 94% branch coverage; frontend
+  1 passed at 100%; lint clean both sides; the Dockerfile-existence guard skips
+  cleanly (exit 0) and the negative check confirmed an injected lint error fails
+  the invoked command (non-zero exit).
+
+## 2. MCP usage
+
+Model Context Protocol servers/tools used during development (e.g. issue
+trackers, design tools, browser automation) and what they contributed.
+
+- **2026-07-23 — Story 1.1:** None used. No MCP servers were required for the
+  repository skeleton.
+
+- **2026-07-23 — Story 1.2:** None used. Local Docker (standalone `postgres:17`
+  container) provided the integration-test database; no MCP servers were
+  required.
+
+- **2026-07-23 — Story 1.3:** None used. Local Docker mirrored the CI Postgres
+  service container for validation; no MCP servers were required.
+
+## 3. Test-generation hits and misses
+
+Where AI-generated tests were valuable (hits) and where they were wrong,
+redundant, or missed cases (misses) and needed human correction.
+
+- **2026-07-23 — Story 1.1:** Hits — trivial placeholder tests for pytest,
+  Vitest, and Playwright were generated correctly and pass, proving each runner
+  and its coverage collection work. Misses — none material yet; substantive
+  test generation begins with feature work in Story 1.2 / Epic 2.
+
+- **2026-07-23 — Story 1.2:** Hits — the error-envelope, DB-down (503), and
+  request-logging unit tests plus the transactional-rollback integration
+  fixture were generated correctly and establish the reusable Epic-2 test
+  pattern. Misses — the first integration `conftest.py` used a module-level
+  `pytestmark` to skip on an unreachable DB, but `pytestmark` in a `conftest`
+  does NOT propagate to sibling test modules, so integration tests errored
+  instead of skipping when the DB was down. Caught by deliberately pointing the
+  suite at a dead DSN; fixed with a `pytest_collection_modifyitems` skip hook
+  and re-verified (skips cleanly with no DB, passes with one).
+
+- **2026-07-23 — Story 1.3:** No new application tests — this is a CI
+  orchestration story. The verification instead confirmed the existing suites
+  run correctly under the exact conditions CI uses: the 1.2 integration suite,
+  which honestly *skips* when no DB is reachable, was proven to actually *run*
+  (2 integration + 1 alembic-cycle test, not skipped) once `TEST_DATABASE_URL`
+  pointed at the Postgres 17 service mirror — validating that the workflow's
+  service-container wiring exercises the real integration path rather than
+  silently skipping it.
+
+## 4. AI-debugging cases
+
+Concrete bugs or failures where AI assistance helped diagnose or fix an issue —
+what broke, how AI helped, and the resolution.
+
+- **2026-07-23 — Story 1.1:** The E2E TypeScript typecheck (`tsc --noEmit`)
+  failed with `TS2688: Cannot find type definition file for 'node'` because
+  `playwright.config.ts` references Node globals while `@types/node` was not yet
+  a dependency. Diagnosed from the compiler error and fixed by adding
+  `@types/node ^22` to `e2e/package.json`; the lint target then exits 0.
+
+- **2026-07-23 — Story 1.2:** `pydantic-settings` raised
+  `SettingsError: error parsing value for field "cors_origins"` because it
+  JSON-decodes `list[str]` env values by default, and `CORS_ORIGINS=http://…`
+  is not JSON. Diagnosed from the traceback (`json.loads` in the env source) and
+  fixed by annotating the field `Annotated[list[str], NoDecode,
+  BeforeValidator(_split_origins)]` so the comma-separated 12-factor string is
+  split by our own validator. Verified against multi-origin and empty inputs.
+
+- **2026-07-23 — Story 1.3:** The backend venv lacks PyYAML, so the initial
+  attempt to parse `ci.yml` for well-formedness raised `ModuleNotFoundError: No
+  module named 'yaml'`. Rather than install an unpinned dependency into the
+  project venv, validated the YAML with the system Ruby's built-in `yaml`
+  library instead (confirmed jobs `backend`/`frontend`/`build-images` and
+  triggers `push`/`pull_request` parse correctly).
+
+## 5. Limitations — where human expertise was critical
+
+Places where AI output was insufficient, misleading, or required human judgment
+to correct — architecture decisions, domain nuance, security, or correctness
+calls that a human owned.
+
+- **2026-07-23 — Story 1.1:** Runtime version pinning (Node 22 LTS via nvm,
+  Python 3.12 via pyenv with a project-local venv) and the meaningful-coverage
+  exclusion policy follow explicit project conventions and the architecture
+  spine rather than AI defaults; a human owns confirming these hold as the stack
+  is exercised.
+
+- **2026-07-23 — Story 1.2:** The health probe runs `SELECT 1` directly through
+  the request session in the route rather than a repository. A human owns the
+  judgment that this respects AD-2 (no repository/model exists yet; the probe is
+  liveness/readiness, not feature data access) and that feature SQL must NOT
+  follow it into routes once repositories land in Epic 2. Likewise, the choice
+  to provision a standalone `postgres:17` test container (rather than the
+  Epic-5 compose stack) for integration tests now is a sequencing call a human
+  should confirm as the delivery stack is built out.
+
+- **2026-07-23 — Story 1.3:** Two sequencing/environment calls a human owns.
+  (1) The story AC says CI "builds the frontend and backend Docker images",
+  but the multi-stage Dockerfiles are an Epic-5 deliverable and do not exist
+  yet, while the same story requires the pipeline to be green on the current
+  1.1/1.2 scaffold. Resolved by authoring the build step now and guarding it on
+  Dockerfile existence (skips with a GitHub `::notice::` today, activates
+  automatically in Epic 5) — a deliberate forward-compat seam a human should
+  confirm rather than a hard `docker build` that would red the pipeline.
+  (2) This repo has no VCS/remote, so the workflow could not be executed on
+  GitHub; validation was limited to YAML well-formedness, pinned action/version
+  correctness, and running every invoked command locally exactly as CI would.
+  No claim is made that the pipeline "passed on GitHub".

@@ -1,0 +1,2 @@
+# Integration tests (TestClient + real test-profile Postgres, transactional
+# rollback fixtures) land in Story 1.2 / Epic 2. Directory reserved by Story 1.1.

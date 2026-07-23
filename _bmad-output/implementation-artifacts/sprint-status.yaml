@@ -1,0 +1,105 @@
+# generated: 2026-07-23
+# last_updated: 2026-07-23
+# project: nearform_todo_app
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: /Users/bmoe/Projects/nearform_todo_app/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog -> in-progress: Automatically when first story is created (via create-story)
+#   - in-progress -> done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; sprint-status surfaces open ones
+#
+# EXECUTION SEQUENCE:
+# ===================
+# Items appear top-to-bottom in dependency-honoring execution order:
+#   Epic 1 (Foundation + test/CI harness) -> Epic 2 (backend API) ->
+#   Epic 3 (frontend loop, depends on E2) -> Epic 4 (backdrop, after core frontend) ->
+#   Epic 5 (containerized delivery, needs backend+frontend) ->
+#   Epic 6 (QA/a11y/security/docs sign-off against the composed stack).
+# Stories within an epic are ordered by their intra-epic dependencies.
+# Note: Story 1.3 wires the coverage gate report-only; Story 6.2 flips it to enforcing.
+# Note: The AI-integration log is seeded in 1.1 and appended incrementally through 6.4.
+
+generated: 2026-07-23
+last_updated: 2026-07-23
+project: nearform_todo_app
+project_key: NOKEY
+# note: Story 1.3 completed ready-for-dev -> in-progress -> review -> done on 2026-07-23 (full BMAD cycle). Epic 1 all stories done.
+tracking_system: file-system
+story_location: /Users/bmoe/Projects/nearform_todo_app/_bmad-output/implementation-artifacts
+
+development_status:
+  # --- Epic 1: Project Foundation & Test Harness ---
+  epic-1: done
+  1-1-repository-skeleton-and-tooling-baseline: done
+  1-2-fastapi-app-factory-health-readiness-endpoint-and-db-session-foundation: done
+  1-3-github-actions-ci-pipeline: done
+  epic-1-retrospective: optional
+
+  # --- Epic 2: Todo CRUD & Clear-Completed API ---
+  epic-2: backlog
+  2-1-todo-model-list-and-create-endpoints-with-validation-and-error-envelope: backlog
+  2-2-toggle-and-delete-endpoints: backlog
+  2-3-clear-completed-bulk-endpoint-with-id-snapshot: backlog
+  epic-2-retrospective: optional
+
+  # --- Epic 3: Core Todo Experience (Frontend) ---
+  epic-3: backlog
+  3-1-panel-shell-design-tokens-api-client-and-list-view-with-loading-empty-error-states: backlog
+  3-2-add-input-with-optimistic-create-and-client-validation: backlog
+  3-3-todo-row-toggle-completion-in-place-and-delete: backlog
+  3-4-footer-bar-clear-completed-and-deferred-undo-toast: backlog
+  3-5-cross-cutting-keyboard-navigation-screen-reader-semantics-and-responsive-layout: backlog
+  epic-3-retrospective: optional
+
+  # --- Epic 4: Space Backdrop & Graceful Degradation ---
+  epic-4: backlog
+  4-1-isolated-three-js-cube-star-backdrop: backlog
+  4-2-mandatory-degradation-performance-guardrails-and-error-boundary: backlog
+  epic-4-retrospective: optional
+
+  # --- Epic 5: Containerized Delivery ---
+  epic-5: backlog
+  5-1-backend-database-containers-with-health-checks-named-volume-and-migrate-before-serve: backlog
+  5-2-frontend-container-and-single-origin-docker-compose-up: backlog
+  5-3-dev-and-test-compose-profiles-with-env-var-configuration: backlog
+  epic-5-retrospective: optional
+
+  # --- Epic 6: Quality, Accessibility, Security & Documentation Sign-off ---
+  epic-6: backlog
+  6-1-playwright-e2e-suite-and-automated-accessibility-gate: backlog
+  6-2-coverage-gate-at-70-meaningful-coverage: backlog
+  6-3-security-review-and-performance-accessibility-pass: backlog
+  6-4-readme-and-ai-integration-log: backlog
+  epic-6-retrospective: optional

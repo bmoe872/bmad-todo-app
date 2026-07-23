@@ -1,0 +1,143 @@
+name: CI
+
+# Pipeline gate for every push and pull request. Each job invokes the
+# CI-agnostic root Makefile targets (see ./Makefile) — the same commands a
+# developer runs locally — so no test/lint logic is duplicated in this workflow.
+#
+# Scope (Story 1.3): lint -> unit + integration tests -> coverage (REPORT-ONLY;
+# the >=70% meaningful-coverage gate is enforced in Story 6.2) -> build both
+# Docker images (build only). The full compose-backed E2E suite is exercised in
+# Epic 6, not here.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# Least-privilege GITHUB_TOKEN: this pipeline only reads the repo (lint/test/
+# coverage/build-only). Nothing is published, so no write scopes are granted.
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (lint + unit/integration + coverage)
+    runs-on: ubuntu-latest
+
+    # Integration tests run against a real Postgres 17 (matching the pinned DB
+    # version and the transactional-rollback fixtures from Story 1.2), provided
+    # here as a service container with a pg_isready health gate.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: todo
+          POSTGRES_PASSWORD: todo
+          POSTGRES_DB: todo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U todo -d todo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # The 1.2 integration conftest reads TEST_DATABASE_URL (local default is
+      # :5433); point it at the CI service on :5432. DATABASE_URL is read by the
+      # alembic migration integration test.
+      TEST_DATABASE_URL: postgresql+psycopg://todo:todo@localhost:5432/todo
+      DATABASE_URL: postgresql+psycopg://todo:todo@localhost:5432/todo
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install backend (venv + deps)
+        run: make install-backend
+
+      - name: Lint (ruff)
+        run: make lint-backend
+
+      - name: Unit + integration tests with branch coverage (report-only)
+        run: make coverage-backend
+
+      - name: Upload backend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          if-no-files-found: warn
+
+  frontend:
+    name: Frontend (lint + unit + coverage)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        run: make install-frontend
+
+      - name: Lint (eslint + tsc)
+        run: make lint-frontend
+
+      - name: Unit tests with v8 branch coverage (report-only)
+        run: make coverage-frontend
+
+      - name: Upload frontend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage
+          if-no-files-found: warn
+
+  build-images:
+    name: Build Docker images (build only)
+    runs-on: ubuntu-latest
+    # Only build once the quality gates are green.
+    needs: [backend, frontend]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The multi-stage backend/frontend Dockerfiles are delivered in Epic 5.
+      # These steps are authored now and activate automatically once the
+      # Dockerfiles exist, keeping the pipeline green on the current scaffold
+      # while satisfying the "build both images (build only)" contract.
+      - name: Build backend image
+        run: |
+          if [ -f backend/Dockerfile ]; then
+            docker build -t nearform-todo-backend:ci backend
+          else
+            echo "::notice title=Backend image build skipped::backend/Dockerfile not present yet (delivered in Epic 5)."
+          fi
+
+      - name: Build frontend image
+        run: |
+          if [ -f frontend/Dockerfile ]; then
+            docker build -t nearform-todo-frontend:ci frontend
+          else
+            echo "::notice title=Frontend image build skipped::frontend/Dockerfile not present yet (delivered in Epic 5)."
+          fi

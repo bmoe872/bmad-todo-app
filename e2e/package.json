@@ -1,0 +1,20 @@
+{
+  "name": "nearform-todo-e2e",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "install-browsers": "playwright install chromium",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.0",
+    "@playwright/test": "^1.50.0",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,2 @@
+# Isolated three.js backdrop (Backdrop.tsx, scene.ts), code-split, aria-hidden,
+# with mandatory degradation, lands in Epic 4 (AD-8).
