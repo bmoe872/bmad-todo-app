@@ -13,7 +13,13 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    StrictBool,
+    field_serializer,
+    field_validator,
+)
 
 MAX_DESCRIPTION_LENGTH = 500
 
@@ -52,6 +58,19 @@ class TodoCreate(BaseModel):
     @classmethod
     def _validate_description(cls, value: str) -> str:
         return validate_description(value)
+
+
+class TodoUpdate(BaseModel):
+    """Request body for ``PATCH /api/todos/{id}`` (FR-2, AD-4).
+
+    Only ``completed`` is mutable in v1 — there is no text-editing path. Typed as
+    ``StrictBool`` so only real JSON booleans are accepted: strings ("true") and
+    ints (1) are rejected as a ``RequestValidationError`` → the AD-5 ``422``
+    envelope with ``details[].field == "completed"``. A missing field is likewise
+    a ``422``. Any extra keys sent in the body are ignored (never applied).
+    """
+
+    completed: StrictBool
 
 
 class TodoRead(BaseModel):

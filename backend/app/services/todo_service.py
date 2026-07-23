@@ -10,9 +10,10 @@ this DRY, and a violation is surfaced as the AD-5 ``422`` envelope.
 
 from __future__ import annotations
 
+import uuid
 from typing import TYPE_CHECKING
 
-from app.core.errors import AppError
+from app.core.errors import AppError, NotFoundError
 from app.db.models import Todo
 from app.repositories.todo_repo import TodoRepository
 from app.schemas.todo import TodoCreate, validate_description
@@ -49,3 +50,24 @@ class TodoService:
                 details=[{"field": "description", "issue": str(exc)}],
             ) from exc
         return self._repo.create(description)
+
+    def toggle_todo(self, todo_id: uuid.UUID, completed: bool) -> Todo:
+        """Set a Todo's completion to ``completed`` (both directions), FR-2.
+
+        The client sends the desired state, so this is a set-to-value, not a
+        server-side flip. Raises ``NotFoundError`` (AD-5 404) if the id is
+        unknown; ordering/position is unchanged (the repo touches only the flag).
+        """
+        todo = self._repo.set_completed(todo_id, completed)
+        if todo is None:
+            raise NotFoundError()
+        return todo
+
+    def delete_todo(self, todo_id: uuid.UUID) -> None:
+        """Permanently delete a Todo by id (FR-3).
+
+        Raises ``NotFoundError`` (AD-5 404) if the id is unknown / already gone,
+        which the client treats as already-gone and reconciles.
+        """
+        if not self._repo.delete(todo_id):
+            raise NotFoundError()

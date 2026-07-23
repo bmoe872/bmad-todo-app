@@ -1,20 +1,22 @@
-"""Todo endpoints (AD-4): ``GET /api/todos`` and ``POST /api/todos``.
+"""Todo endpoints (AD-4): ``GET``/``POST``/``PATCH``/``DELETE`` under ``/api/todos``.
 
 Routes are thin: they resolve a per-request session (``get_db``, AD-12), call
 the service, and return schema-typed responses. No SQLAlchemy query APIs are
-imported here (AD-2). Body validation of ``TodoCreate`` produces the AD-5
-``422`` envelope automatically via the centralized exception handlers.
+imported here (AD-2). Body validation of ``TodoCreate``/``TodoUpdate`` (and the
+UUID-typed ``{todo_id}`` path param) produces the AD-5 ``422`` envelope
+automatically via the centralized exception handlers.
 """
 
 from __future__ import annotations
 
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.todo import TodoCreate, TodoListResponse, TodoRead
+from app.schemas.todo import TodoCreate, TodoListResponse, TodoRead, TodoUpdate
 from app.services.todo_service import TodoService
 
 router = APIRouter(tags=["todos"])
@@ -35,3 +37,42 @@ def create_todo(
     """Create a Todo from a validated, trimmed description: ``201 Todo`` (FR-1)."""
     todo = TodoService(db).create_todo(data)
     return TodoRead.model_validate(todo)
+
+
+# ---------------------------------------------------------------------------
+# ROUTE ORDER: keep the parametric ``/{todo_id}`` routes BELOW all literal
+# ``/todos`` sub-paths. FastAPI matches routes in declaration order and
+# ``{todo_id}`` is UUID-typed, so a future static route like
+# ``DELETE /api/todos/completed`` (Story 2.3) MUST be registered ABOVE these —
+# otherwise a request to ``/todos/completed`` would try to parse "completed" as
+# a UUID and 422 instead of falling through to the literal route. Register any
+# new literal sub-path above this line.
+# ---------------------------------------------------------------------------
+
+
+@router.patch("/todos/{todo_id}", response_model=TodoRead)
+def toggle_todo(
+    todo_id: uuid.UUID,
+    data: TodoUpdate,
+    db: Annotated[Session, Depends(get_db)],
+) -> TodoRead:
+    """Set a Todo's completion (both directions): ``200 Todo`` / ``404`` (FR-2).
+
+    Only ``completed`` is mutable; ordering/position is unchanged. An unknown id
+    raises ``NotFoundError`` → the AD-5 ``404`` envelope.
+    """
+    todo = TodoService(db).toggle_todo(todo_id, data.completed)
+    return TodoRead.model_validate(todo)
+
+
+@router.delete("/todos/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_todo(
+    todo_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    """Permanently delete a Todo: ``204`` / ``404`` (FR-3).
+
+    Returns an empty ``204`` on success. An unknown/already-gone id raises
+    ``NotFoundError`` → the AD-5 ``404`` envelope (client treats as already-gone).
+    """
+    TodoService(db).delete_todo(todo_id)
