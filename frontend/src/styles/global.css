@@ -240,3 +240,131 @@ body {
   outline: 2px solid var(--color-border-focus);
   outline-offset: 2px;
 }
+
+/* Story 3.3: todo row toggle/delete */
+
+/* The row becomes a vertical stack so a failed-write inline error can sit
+   beneath the row content instead of beside it. Overrides the Story 3.1
+   `.orbit-row` flex-row above (later source order wins). */
+.orbit-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* The interactive line: checkbox + description + delete, laid out horizontally. */
+.orbit-row__main {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+/* Checkbox: a >=44px hit target wrapping the >=24px soft-square visual box.
+   The label wraps ONLY the checkbox so clicking the description never toggles. */
+.orbit-row__check-hit {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.orbit-row__check {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  display: grid;
+  place-content: center;
+  border: 2px solid var(--checkbox-idle-border);
+  border-radius: var(--checkbox-radius);
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Checkmark drawn as a clipped tick; scales in only when checked. */
+.orbit-row__check::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  transform: scale(0);
+  transform-origin: center;
+  transition: transform 120ms ease;
+  background-color: var(--checkbox-checked-mark);
+  clip-path: polygon(14% 44%, 0 60%, 40% 100%, 100% 18%, 82% 0, 38% 66%);
+}
+
+.orbit-row__check:checked {
+  background-color: var(--checkbox-checked-bg);
+  border-color: var(--checkbox-checked-bg);
+}
+
+.orbit-row__check:checked::before {
+  transform: scale(1);
+}
+
+.orbit-row__check:focus-visible {
+  outline: 2px solid var(--checkbox-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Completed styling: THREE redundant cues at once — checked box (above) +
+   strikethrough + de-emphasized `ink-completed` ink held >=4.5:1 on the scrim.
+   Never color alone. */
+.orbit-row[data-completed='true'] .orbit-row__text {
+  text-decoration: line-through;
+  color: var(--todo-row-text-completed);
+}
+
+/* Delete affordance: low-emphasis, >=44px target. The "x" glyph is drawn via
+   ::before so it stays OUT of the row's text content; the accessible name comes
+   from the button's aria-label. */
+.orbit-row__delete {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--color-ink-secondary);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.orbit-row__delete::before {
+  content: '\00d7'; /* multiplication sign x */
+}
+
+.orbit-row__delete:hover,
+.orbit-row__delete:focus-visible {
+  color: var(--color-danger);
+}
+
+/* Hover-revealed on pointer devices; ALWAYS visible on touch. On pointer the x
+   is hidden until the row is hovered or something in it is focused (so keyboard
+   users can still reach it). Touch (hover: none) keeps it permanently visible. */
+@media (hover: hover) and (pointer: fine) {
+  .orbit-row__delete {
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+  .orbit-row:hover .orbit-row__delete,
+  .orbit-row:focus-within .orbit-row__delete {
+    opacity: 1;
+  }
+}
+
+/* Reduced motion: drop the reveal / checkmark micro-transitions to instant. */
+@media (prefers-reduced-motion: reduce) {
+  .orbit-row__delete,
+  .orbit-row__check::before {
+    transition: none;
+  }
+}
