@@ -9,7 +9,10 @@
 # engines.node ">=22 <23". nginx pinned to stable-alpine per the architecture Stack.
 
 # ---- Stage 1: builder ----------------------------------------------------
-FROM node:22-slim AS builder
+# Base pinned by DIGEST (supply-chain hardening, Story 6.3 security pass) so the
+# build is reproducible and immune to a mutated `node:22-slim` tag. Tag kept in
+# the comment for readability. Digest resolved for node:22-slim (linux, 2026-07-23).
+FROM node:22-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS builder
 
 WORKDIR /build
 
@@ -27,7 +30,9 @@ COPY . .
 RUN npm run build
 
 # ---- Stage 2: runtime ----------------------------------------------------
-FROM nginx:stable-alpine AS runtime
+# nginx base pinned by DIGEST (supply-chain hardening, Story 6.3). Tag kept in
+# the comment. Digest resolved for nginx:stable-alpine (linux, 2026-07-23).
+FROM nginx:stable-alpine@sha256:97d490c12ba55b4946b01546d1c3ed324e8d41ab1c9fcb2a616aa470620e5b46 AS runtime
 
 # Single-origin server block replaces the stock conf.d/default.conf. The stock
 # main nginx.conf already `include`s conf.d/*.conf inside http{}, so this is the
@@ -68,7 +73,8 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=5 \
 # /app/node_modules to preserve it). The nginx `runtime` stage above stays the
 # DEFAULT final stage, so a bare `docker build ./frontend` (and the profile-free
 # compose, which pins `target: runtime`) still produces the prod nginx image.
-FROM node:22-slim AS dev
+# Same digest-pinned node base as the builder stage.
+FROM node:22-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS dev
 
 WORKDIR /app
 
