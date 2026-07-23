@@ -560,3 +560,17 @@ calls that a human owned.
   fresh agent could resume deterministically from a hard API failure without
   losing or re-doing work — the uncommitted diff plus the story's Dev Notes were
   enough context to finish safely.
+
+- **2026-07-23 — Stories 6.2 & 6.3 (built in parallel):** Coverage-gate enforcement
+  (6.2) and the security/perf/a11y pass (6.3) ran concurrently in isolated
+  worktrees. Deliberately partitioned the shared surface — 6.2 owned
+  ci.yml/Makefile/coverage config, 6.3 owned nginx/Dockerfiles/docs — so the
+  merge was CONFLICT-FREE (disjoint files). Orchestrator then re-ran BOTH
+  coverage gates first-hand to confirm (backend 96.76%, frontend 85.35% branch,
+  both >70; negative check at 99% correctly exits non-zero). 6.3 findings: no
+  High/Critical security issues (XSS inert, injection parameterized, CORS
+  correct, 0 npm-audit vulns); applied nginx security headers + dynamic-DNS
+  resolver + base-image digest pins; API p95 <7ms measured through the proxy.
+  Verification residuals honestly labeled: in-browser CSP console check and
+  live-GPU 60fps were design-analysis (no browser/GPU tooling in harness), not
+  fabricated measurements.

@@ -110,7 +110,7 @@ development_status:
   # --- Epic 6: Quality, Accessibility, Security & Documentation Sign-off ---
   epic-6: in-progress
   6-1-playwright-e2e-suite-and-automated-accessibility-gate: done
-  6-2-coverage-gate-at-70-meaningful-coverage: backlog
-  6-3-security-review-and-performance-accessibility-pass: backlog
+  6-2-coverage-gate-at-70-meaningful-coverage: done
+  6-3-security-review-and-performance-accessibility-pass: done
   6-4-readme-and-ai-integration-log: backlog
   epic-6-retrospective: optional
