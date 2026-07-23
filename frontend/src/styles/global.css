@@ -391,3 +391,120 @@ body {
     transition: none;
   }
 }
+
+/* Story 3.4: footer + clear-completed + undo toast */
+
+/* ---- Footer bar ---- (left: completed count / right: ghost Clear-completed) */
+.orbit-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.orbit-footer__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.orbit-footer__count {
+  font-size: var(--type-meta-size);
+  line-height: var(--type-meta-line);
+  color: var(--color-ink-secondary);
+}
+
+/* Ghost/text button — no fill, no border; ink-secondary → ink-primary on hover. */
+.orbit-footer__clear {
+  font-family: var(--font-family-base);
+  font-size: var(--type-button-size);
+  font-weight: var(--type-button-weight);
+  line-height: var(--type-button-line);
+  letter-spacing: var(--type-button-tracking);
+  color: var(--button-clear-text);
+  background: none;
+  border: none;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--button-clear-radius);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .orbit-footer__clear:hover {
+    color: var(--button-clear-text-hover);
+  }
+}
+
+/* ---- Undo toast ---- (transient bottom overlay) */
+/* Full-width fixed layer centers the bar and reserves the mobile thumb zone;
+   pointer-events pass through everywhere except the bar itself. */
+.orbit-toast-layer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--space-5);
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--space-4);
+  pointer-events: none;
+}
+
+.orbit-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  /* Constrained on desktop; near-full-width above the thumb zone on mobile
+     (the layer's 16px side padding is the only gutter at 320px). */
+  max-width: 400px;
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--toast-undo-bg);
+  color: var(--toast-undo-text);
+  border-radius: var(--toast-undo-radius);
+  /* Reuse the one product shadow so the toast reads as a lifted object. */
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.65);
+  animation: orbit-toast-in 160ms ease-out;
+}
+
+.orbit-toast__text {
+  font-size: var(--type-meta-size);
+  line-height: var(--type-meta-line);
+  color: var(--toast-undo-text);
+}
+
+/* accent-strong action — the only accent use in the footer/toast region. */
+.orbit-toast__action {
+  flex: 0 0 auto;
+  font-family: var(--font-family-base);
+  font-size: var(--type-button-size);
+  font-weight: var(--type-button-weight);
+  line-height: var(--type-button-line);
+  letter-spacing: var(--type-button-tracking);
+  color: var(--toast-undo-action);
+  background: none;
+  border: none;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+@keyframes orbit-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Micro-transitions drop to instant for reduced-motion users. */
+@media (prefers-reduced-motion: reduce) {
+  .orbit-toast {
+    animation: none;
+  }
+}

@@ -15,20 +15,27 @@ interface PanelProps {
   addSlot?: React.ReactNode;
   /** Footer zone (Story 3.4). */
   footerSlot?: React.ReactNode;
+  /** Bottom overlay zone for the transient Undo toast (Story 3.4). */
+  toastSlot?: React.ReactNode;
 }
 
-export function Panel({ children, addSlot, footerSlot }: PanelProps) {
+export function Panel({ children, addSlot, footerSlot, toastSlot }: PanelProps) {
   return (
-    <section className="orbit-panel" aria-labelledby="orbit-title">
-      <h1 className="orbit-title" id="orbit-title">
-        Todos
-      </h1>
+    <>
+      <section className="orbit-panel" aria-labelledby="orbit-title">
+        <h1 className="orbit-title" id="orbit-title">
+          Todos
+        </h1>
 
-      {addSlot ?? <AddInput />}
+        {addSlot ?? <AddInput />}
 
-      {children}
+        {children}
 
-      <div className="orbit-footer-slot">{footerSlot}</div>
-    </section>
+        <div className="orbit-footer-slot">{footerSlot}</div>
+      </section>
+      {/* Transient Undo-toast overlay (Story 3.4): position:fixed, so it lives
+          outside the panel box but is composed here alongside the footer slot. */}
+      {toastSlot}
+    </>
   );
 }

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Todo } from '../types';
 import { ApiClientError, apiFetch } from './client';
-import { getTodos } from './todos';
+import { clearCompleted, getTodos } from './todos';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -92,5 +92,23 @@ describe('api client', () => {
     );
 
     await expect(apiFetch('/todos/x', { method: 'DELETE' })).resolves.toBeUndefined();
+  });
+
+  it('clearCompleted sends DELETE /api/todos/completed with the id snapshot body and parses { deleted }', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ deleted: 2 }, 200));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const ids = ['id-a', 'id-b'];
+    await expect(clearCompleted(ids)).resolves.toEqual({ deleted: 2 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/todos/completed',
+      expect.objectContaining({
+        method: 'DELETE',
+        body: JSON.stringify({ ids }),
+      }),
+    );
   });
 });
