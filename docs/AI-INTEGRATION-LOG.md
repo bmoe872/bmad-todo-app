@@ -82,6 +82,34 @@ agents/workflows, what they produced, and how their output was reviewed.
   tests generated and run; 100% coverage on the covered set (report-only);
   eslint + `tsc` clean; production build succeeds. Node 22.23.1 (nvm).
 
+- **2026-07-23 — Story 5.1 (Backend & database containers):** Ran the full BMAD
+  story cycle (`create-story` → `dev-story` → `code-review`). First Epic 5
+  (containerization) story — added `backend/Dockerfile`, `backend/.dockerignore`,
+  `backend/docker-entrypoint.sh`, and the root `docker-compose.yml`; no
+  application code changed. The agent built a multi-stage image (`python:3.12-slim`
+  builder installs deps into `/opt/venv`, slim runtime copies the venv + `app/` +
+  `migrations/` + `alembic.ini`), a non-root `appuser` (uid/gid 10001), a
+  `HEALTHCHECK` hitting `GET /api/health` via Python `urllib` (the slim image has
+  no curl/wget), and a `#!/bin/sh` entrypoint enforcing migrate-before-serve
+  (AD-11): `alembic upgrade head` then `exec uvicorn`. Compose brings up
+  `postgres:17` on the named volume `pgdata` with a `pg_isready` healthcheck and a
+  `backend` gated on `depends_on: condition: service_healthy`. Scoped to db+backend
+  only, structured so 5.2 (frontend/nginx single-origin) and 5.3 (dev/test
+  profiles) bolt on. VERIFIED FOR REAL against Docker 29.6.2 / Compose v5.3.1:
+  `docker compose build` + `up` brought both services healthy (db healthy before
+  backend started, proving the gate); migrations reached `0002_create_todos`;
+  `GET /api/health` returned `200 {"status":"ok","db":"ok"}`; `id` inside the
+  container showed `uid=10001(appuser)`; durability held across `down`/`up` (two
+  POSTed todos survived on the volume, migration idempotent on restart). The
+  CI-exact `docker build -t nearform-todo-backend:ci backend` also succeeded,
+  confirming the previously-dormant `build-images` CI step now activates. Backend
+  pytest suite stayed green (43 passed, 44 pre-existing skips — the integration
+  tests need a test-profile Postgres on :5433, a 5.3/CI concern). Containers and
+  the ad-hoc test volume were torn down after verification; the `pgdata` volume
+  *definition* stays in the compose file. Code review (in-session Blind Hunter /
+  Edge Case Hunter / Acceptance Auditor lenses) found no patch or decision items;
+  one low deferral (base image pinned by tag not digest → Epic 6 Story 6.3).
+
 ## 2. MCP usage
 
 Model Context Protocol servers/tools used during development (e.g. issue
@@ -99,6 +127,10 @@ trackers, design tools, browser automation) and what they contributed.
 
 - **2026-07-23 — Story 2.1:** None used. A standalone `postgres:17` container
   on :5433 provided the integration-test database; no MCP servers were required.
+
+- **2026-07-23 — Story 5.1:** None used. Local Docker (Compose v5.3.1) ran the
+  full db+backend stack directly for real verification; no MCP servers were
+  required.
 
 ## 3. Test-generation hits and misses
 

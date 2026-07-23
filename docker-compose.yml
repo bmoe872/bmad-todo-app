@@ -1,0 +1,64 @@
+# Composed stack for nearform_todo_app.
+#
+# Story 5.1 scope: `db` (PostgreSQL 17) + `backend` (FastAPI/Uvicorn) only.
+#   - db persists to the named volume `pgdata` and gates the backend via a
+#     pg_isready healthcheck (AD-11).
+#   - backend depends on db being healthy, then migrates-before-serving (its
+#     Dockerfile ENTRYPOINT runs `alembic upgrade head` then uvicorn) and
+#     declares its own healthcheck (from the Dockerfile) on GET /api/health.
+#
+# Config is 12-factor: everything is an env var with a non-secret dev default
+# (`${VAR:-default}`), so no secret values are committed. Override via a local
+# .env (gitignored) or the shell environment.
+#
+# Extension seam (do NOT add here yet):
+#   - Story 5.2 adds a `frontend` service (nginx, single-origin /api proxy,
+#     depends_on backend: service_healthy).
+#   - Story 5.3 adds `dev` / `test` compose profiles (source mounts, Vite HMR,
+#     exposed ports, CORS enabled only in dev). Base config stays profile-free
+#     so a plain `docker compose up` is the production-like stack.
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-todo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-todo}
+      POSTGRES_DB: ${POSTGRES_DB:-todo}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-todo} -d ${POSTGRES_DB:-todo}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - appnet
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      # SQLAlchemy 2.0 + psycopg 3 sync DSN. Host is the `db` service name on the
+      # internal network (NOT localhost). Credentials mirror the db service.
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-todo}:${POSTGRES_PASSWORD:-todo}@db:5432/${POSTGRES_DB:-todo}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # CORS_ORIGINS intentionally unset: single-origin (AD-10); CORS is a
+      # dev-profile concern enabled in Story 5.3.
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    networks:
+      - appnet
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+
+networks:
+  appnet:
+    driver: bridge

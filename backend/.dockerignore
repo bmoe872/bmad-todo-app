@@ -1,0 +1,36 @@
+# Keep the build context small, reproducible, and free of local/dev cruft.
+# The runtime image needs only: app/, migrations/, alembic.ini, pyproject.toml,
+# and docker-entrypoint.sh — everything else is excluded here.
+
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Local virtualenv (deps are installed fresh in the builder stage)
+.venv/
+venv/
+
+# Test / lint / coverage artifacts (not needed at runtime)
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+tests/
+
+# Environment / secrets (never bake into the image; 12-factor via env vars)
+.env
+.env.*
+
+# Docker files themselves
+Dockerfile
+.dockerignore
+
+# OS / editor cruft
+.DS_Store
+*.swp
