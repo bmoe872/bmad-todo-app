@@ -25,12 +25,17 @@ class _FakeRepo:
     paths the service maps to 404).
     """
 
+    _UNSET = object()
+
     def __init__(self, existing_ids: set[uuid.UUID] | None = None) -> None:
         self.created_with: str | None = None
         self.listed = False
         self.existing_ids = existing_ids if existing_ids is not None else set()
         self.set_completed_args: tuple[uuid.UUID, bool] | None = None
         self.deleted_id: uuid.UUID | None = None
+        # Sentinel so tests can distinguish "not called" from "called with None".
+        self.cleared_with: object = self._UNSET
+        self.clear_returns = 0
 
     def create(self, description: str):
         self.created_with = description
@@ -46,6 +51,10 @@ class _FakeRepo:
             return None
         # Echo the requested state so the service returns the updated row.
         return {"id": todo_id, "completed": completed}
+
+    def clear_completed(self, ids):
+        self.cleared_with = ids
+        return self.clear_returns
 
     def delete(self, todo_id: uuid.UUID) -> bool:
         self.deleted_id = todo_id
@@ -120,3 +129,33 @@ def test_delete_todo_missing_id_raises_not_found() -> None:
     err = exc_info.value
     assert err.status_code == 404
     assert err.code == "not_found"
+
+
+def test_clear_completed_forwards_snapshot_verbatim() -> None:
+    # A concrete id snapshot is passed through to the repo unchanged (AD-7:
+    # the still-completed filtering is the repo's single SQL predicate, so the
+    # service is a pure passthrough).
+    service, fake = _service_with_fake_repo()
+    snapshot = [uuid.uuid4(), uuid.uuid4()]
+    fake.clear_returns = 2
+    result = service.clear_completed(snapshot)
+    assert fake.cleared_with == snapshot
+    assert result == 2
+
+
+def test_clear_completed_forwards_none_for_clear_all() -> None:
+    # Omitted body -> ids is None -> clear-all fallback forwarded as None.
+    service, fake = _service_with_fake_repo()
+    fake.clear_returns = 5
+    result = service.clear_completed(None)
+    assert fake.cleared_with is None
+    assert result == 5
+
+
+def test_clear_completed_forwards_empty_list() -> None:
+    # Explicit empty snapshot forwarded verbatim (repo returns 0 no-op).
+    service, fake = _service_with_fake_repo()
+    fake.clear_returns = 0
+    result = service.clear_completed([])
+    assert fake.cleared_with == []
+    assert result == 0

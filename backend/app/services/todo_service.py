@@ -71,3 +71,16 @@ class TodoService:
         """
         if not self._repo.delete(todo_id):
             raise NotFoundError()
+
+    def clear_completed(self, ids: list[uuid.UUID] | None) -> int:
+        """Bulk-clear completed Todos, returning the count actually deleted.
+
+        Implements the server half of the AD-7 deferred-commit model. ``ids`` is
+        the client's completed-id snapshot: when provided, only snapshot ids that
+        are *still* completed are deleted; when ``None`` (body omitted) all
+        currently-completed Todos are cleared. The "still completed" filter and
+        snapshot intersection are expressed as a single SQL predicate at the
+        repository chokepoint (AD-2), so the service passes the snapshot through
+        unchanged.
+        """
+        return self._repo.clear_completed(ids)

@@ -99,3 +99,27 @@ class TodoListResponse(BaseModel):
     """Response envelope for ``GET /api/todos`` -> ``{ "todos": [...] }`` (AD-3)."""
 
     todos: list[TodoRead]
+
+
+class ClearCompletedRequest(BaseModel):
+    """Request body for ``DELETE /api/todos/completed`` (FR-9, AD-7).
+
+    Carries the optional *id snapshot* of the deferred-commit model: the exact
+    set of Todo ids the client captured as completed when the user clicked
+    "Clear completed". The server deletes only those ids that are **still**
+    completed (see ``TodoService.clear_completed``), so a Todo re-activated
+    during the Undo window is never swept.
+
+    ``ids is None`` (body omitted / ``null``) => clear ALL currently-completed
+    Todos. ``ids == []`` is an explicit empty snapshot => deletes nothing. A
+    non-list value or a non-UUID element fails Pydantic validation and flows
+    through the centralized AD-5 ``422`` handler.
+    """
+
+    ids: list[uuid.UUID] | None = None
+
+
+class ClearCompletedResponse(BaseModel):
+    """Response for ``DELETE /api/todos/completed`` -> ``{ "deleted": <int> }``."""
+
+    deleted: int

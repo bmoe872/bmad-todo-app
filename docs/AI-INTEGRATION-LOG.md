@@ -199,3 +199,20 @@ calls that a human owned.
   the description as text only (never interpreted as HTML server-side) is
   sufficient for NFR-Sec at this layer, with output escaping owned by the Epic 3
   React client.
+
+- **2026-07-23 — Stories 2.2 & 2.3 (built in parallel):** These two stories were
+  implemented concurrently by separate AI agents in isolated git worktrees
+  (branches `story-2.2`, `story-2.3`) to increase throughput, then merged.
+  What worked: because 2.2 added the parametric `/{id}` routes at the *bottom*
+  of the router and 2.3 added the literal `/completed` route at the *top* (each
+  with explicit route-ordering comments), the router body auto-merged with the
+  correct FastAPI declaration order; 2.3 also contributed a merge-guard
+  integration test asserting `/completed` is not captured as `{id}`. Human/
+  orchestrator judgment owned: (1) resolving the additive merge conflicts in
+  `todos.py`, `todo_repo.py`, `todo_service.py`, and `test_todo_service.py`
+  (union of both sides — notably merging the two divergent `_FakeRepo` unit-test
+  fakes into one), and (2) running the full combined suite against a fresh
+  Postgres post-merge (87 passed, 97% branch coverage) since neither agent could
+  see the other's changes. Limitation encountered: the story sub-agents could
+  not spawn their own sub-agents, so parallelism had to be orchestrated one
+  level up; and each worktree had to rebuild its own venv (venvs are gitignored).

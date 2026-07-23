@@ -69,10 +69,10 @@ development_status:
   epic-1-retrospective: optional
 
   # --- Epic 2: Todo CRUD & Clear-Completed API ---
-  epic-2: in-progress
+  epic-2: done
   2-1-todo-model-list-and-create-endpoints-with-validation-and-error-envelope: done
-  2-2-toggle-and-delete-endpoints: backlog
-  2-3-clear-completed-bulk-endpoint-with-id-snapshot: backlog
+  2-2-toggle-and-delete-endpoints: done
+  2-3-clear-completed-bulk-endpoint-with-id-snapshot: done
   epic-2-retrospective: optional
 
   # --- Epic 3: Core Todo Experience (Frontend) ---
