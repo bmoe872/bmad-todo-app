@@ -11,7 +11,9 @@ wire contract or the layers above.
 
 from __future__ import annotations
 
-from sqlalchemy import select
+import uuid
+
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db.models import Todo
@@ -45,3 +47,32 @@ class TodoRepository:
         self._db.commit()
         self._db.refresh(todo)
         return todo
+
+    def clear_completed(self, ids: list[uuid.UUID] | None) -> int:
+        """Bulk-delete completed Todos and return the number of rows removed.
+
+        Encodes the AD-7 deferred-commit / id-snapshot rule in a single
+        parameterized predicate::
+
+            DELETE FROM todos WHERE completed = true [AND id IN (:ids)]
+
+        - ``completed = true`` guarantees active Todos are never touched AND a
+          snapshot id that has since been re-activated is skipped (it is no
+          longer completed) — so a stale snapshot is always safe.
+        - When ``ids is not None`` the delete is restricted to the snapshot via
+          a parameterized ``IN`` (NFR-Sec — no string interpolation). When
+          ``ids is None`` (body omitted) all completed Todos are cleared.
+        - An explicit empty snapshot (``ids == []``) matches nothing by
+          definition; we short-circuit to ``0`` rather than emit a degenerate
+          ``IN ()`` construct.
+
+        AD-9 seam: owner scoping would add a `.where(Todo.owner_id == ...)` here.
+        """
+        if ids is not None and len(ids) == 0:
+            return 0
+        stmt = delete(Todo).where(Todo.completed.is_(True))
+        if ids is not None:
+            stmt = stmt.where(Todo.id.in_(ids))
+        result = self._db.execute(stmt, execution_options={"synchronize_session": False})
+        self._db.commit()
+        return result.rowcount

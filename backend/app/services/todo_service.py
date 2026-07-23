@@ -10,6 +10,7 @@ this DRY, and a violation is surfaced as the AD-5 ``422`` envelope.
 
 from __future__ import annotations
 
+import uuid
 from typing import TYPE_CHECKING
 
 from app.core.errors import AppError
@@ -49,3 +50,16 @@ class TodoService:
                 details=[{"field": "description", "issue": str(exc)}],
             ) from exc
         return self._repo.create(description)
+
+    def clear_completed(self, ids: list[uuid.UUID] | None) -> int:
+        """Bulk-clear completed Todos, returning the count actually deleted.
+
+        Implements the server half of the AD-7 deferred-commit model. ``ids`` is
+        the client's completed-id snapshot: when provided, only snapshot ids that
+        are *still* completed are deleted; when ``None`` (body omitted) all
+        currently-completed Todos are cleared. The "still completed" filter and
+        snapshot intersection are expressed as a single SQL predicate at the
+        repository chokepoint (AD-2), so the service passes the snapshot through
+        unchanged.
+        """
+        return self._repo.clear_completed(ids)
