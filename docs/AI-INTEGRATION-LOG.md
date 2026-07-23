@@ -244,3 +244,21 @@ calls that a human owned.
   see the other's changes. Limitation encountered: the story sub-agents could
   not spawn their own sub-agents, so parallelism had to be orchestrated one
   level up; and each worktree had to rebuild its own venv (venvs are gitignored).
+
+- **2026-07-23 — Stories 3.2, 3.3, 3.4 (built in parallel):** Three frontend
+  stories implemented concurrently by separate AI agents in isolated git
+  worktrees (branches `story-3.2/3.3/3.4`) on top of the 3.1 foundation, then
+  merged. What worked: each agent put its optimistic mutation in its OWN new
+  hook file (`useCreateTodo`, `useTodoMutations`, `useClearCompleted`) and left
+  the shared `useTodos.ts` untouched, so there were zero hook conflicts; App.tsx
+  auto-merged (only 3.4 touched it). Orchestrator judgment owned: resolving
+  additive conflicts in `api/todos.ts` (union of create/toggle/delete/clear),
+  `Panel.tsx` (compose the real AddInput slot from 3.2 with the toastSlot from
+  3.4), and `global.css` — which git interleaved badly on shared CSS property
+  lines, so it was reconstructed as "pre-3.4 file + 3.4's appended block
+  verbatim" rather than resolved hunk-by-hunk. Full merged suite verified green
+  post-merge (56 Vitest tests, 97% stmts, lint clean, production build OK) since
+  no agent could see the others' changes. Limitation: sub-agents still can't
+  spawn sub-agents, so parallelism is orchestrated one level up; each worktree
+  re-ran `npm ci` (node_modules gitignored). AD-7 deferred-commit (undo = client
+  timer cancel, single DELETE on dismiss with id snapshot) built cleanly in 3.4.

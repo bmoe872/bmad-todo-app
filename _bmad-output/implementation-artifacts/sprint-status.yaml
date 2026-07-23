@@ -79,9 +79,9 @@ development_status:
   # --- Epic 3: Core Todo Experience (Frontend) ---
   epic-3: in-progress
   3-1-panel-shell-design-tokens-api-client-and-list-view-with-loading-empty-error-states: done
-  3-2-add-input-with-optimistic-create-and-client-validation: backlog
-  3-3-todo-row-toggle-completion-in-place-and-delete: backlog
-  3-4-footer-bar-clear-completed-and-deferred-undo-toast: backlog
+  3-2-add-input-with-optimistic-create-and-client-validation: done
+  3-3-todo-row-toggle-completion-in-place-and-delete: done
+  3-4-footer-bar-clear-completed-and-deferred-undo-toast: done
   3-5-cross-cutting-keyboard-navigation-screen-reader-semantics-and-responsive-layout: backlog
   epic-3-retrospective: optional
 
