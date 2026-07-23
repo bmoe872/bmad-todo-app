@@ -15,3 +15,8 @@ originating story. Each entry names its source and a one-line reason.
 ## Deferred from: code review of story-5.1 (2026-07-23)
 
 - **Backend base image pinned by tag, not digest.** `backend/Dockerfile` uses `python:3.12-slim` (matches the 3.12 pin the story required) but not a `@sha256:` digest. Digest pinning for reproducible/supply-chain-hardened builds belongs to the Epic 6 Story 6.3 security pass; not actioned in 5.1.
+
+## Deferred from: code review of story-5.2 (2026-07-23)
+
+- **nginx resolves the `backend` upstream once at config-load (static DNS).** `frontend/nginx.conf` uses `proxy_pass http://backend:8000;` (literal hostname), so nginx caches the resolved IP for the worker lifetime. Correct on a normal `docker compose up` (frontend waits for backend healthy via `depends_on`; `restart: unless-stopped` preserves the IP). A stale IP → 502 only if the backend is recreated with a new IP while the frontend is not restarted. Hardened fix (`resolver 127.0.0.11 valid=10s;` + variable upstream for per-request re-resolution) belongs to the Epic 6 / 5.3 ops pass; not warranted for 5.2's verified single-`docker compose up` scope.
+- **Frontend base images pinned by tag, not digest.** `frontend/Dockerfile` uses `node:22-slim` and `nginx:stable-alpine` (tag pins satisfy the story requirement) but not `@sha256:` digests. Digest pinning for supply-chain-hardened builds belongs to the Epic 6 Story 6.3 security pass — same disposition as the 5.1 backend finding.

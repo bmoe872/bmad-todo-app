@@ -110,6 +110,47 @@ agents/workflows, what they produced, and how their output was reviewed.
   Edge Case Hunter / Acceptance Auditor lenses) found no patch or decision items;
   one low deferral (base image pinned by tag not digest → Epic 6 Story 6.3).
 
+- **2026-07-23 — Story 5.2 (Frontend container + single-origin `docker compose
+  up`):** Ran the full BMAD cycle (`create-story` → `dev-story` → `code-review`).
+  Added `frontend/Dockerfile`, `frontend/.dockerignore`, `frontend/nginx.conf`, and
+  EXTENDED (did not rewrite) the 5.1 `docker-compose.yml` with a `frontend`
+  service — no application code changed. The agent built a multi-stage image
+  (`node:22-slim` builder runs `npm ci` + `npm run build` → static `dist/`;
+  `nginx:stable-alpine` runtime serves it), running nginx **non-root** (uid 101)
+  by listening on the unprivileged port 8080 and chowning the cache/log/pid paths,
+  with a `HEALTHCHECK` on `GET /` via busybox `wget`. `nginx.conf` implements the
+  AD-10 single origin: it serves the SPA with a `try_files … /index.html` fallback
+  and reverse-proxies `location /api/ { proxy_pass http://backend:8000; }` — no
+  trailing slash, so the `/api` prefix is preserved — forwarding method/body/headers
+  by default so the clear-completed `DELETE /api/todos/completed` request BODY passes
+  through. No CORS headers anywhere (single origin). A notable non-obvious point:
+  **zero frontend code changed** — the API client already defaults its base to
+  `/api` when `VITE_API_BASE_URL` is unset, so an unset build env var IS the correct
+  single-origin production build. VERIFIED FOR REAL against Docker 29.6.2 / Compose
+  v5.3.1: `docker compose build` + `up` brought all three services healthy in order
+  (db → backend → frontend via `depends_on: service_healthy`); the SPA loaded at
+  `http://localhost:8080/`; `GET :8080/api/health` returned `200
+  {"status":"ok","db":"ok"}` PROXIED through nginx with **no `Access-Control-*`
+  headers**; a full CRUD round-trip through the proxy passed (POST 201 → GET → PATCH
+  200 → DELETE 204) plus the clear-completed DELETE-with-body (`{"deleted":1}`); and
+  the SPA deep-link fallback returned `index.html` while unknown `/api/*` correctly
+  proxied to the backend 404. The CI-exact `docker build -t
+  nearform-todo-frontend:ci frontend` also succeeded, activating the dormant
+  frontend `build-images` CI step. The real bring-up caught a genuine bug the
+  reviewer would have missed statically: the frontend went `unhealthy` because the
+  in-container healthcheck probed `http://localhost:8080/`, and in
+  `nginx:stable-alpine` `localhost` resolves to IPv6 `::1` first while nginx binds
+  IPv4 `0.0.0.0:8080` only → connection refused (host `curl` worked, masking it);
+  fixed by probing `127.0.0.1`. Test suites stayed green (frontend 114 Vitest;
+  backend 43 passed / 44 pre-existing skips). Stack torn down with `docker compose
+  down -v`, no leftovers; the compose file + `frontend` service + `pgdata` volume
+  definition stay in the repo. Code review (in-session Blind Hunter / Edge Case
+  Hunter / Acceptance Auditor lenses) found no patch or decision items; two low
+  deferrals to Epic 6 Story 6.3 (nginx static-DNS resolution of the `backend`
+  upstream; base images pinned by tag not digest). Left for Story 5.3: `dev`/`test`
+  compose profiles — base config kept profile-free so a plain `docker compose up`
+  is the production-like single-origin stack.
+
 ## 2. MCP usage
 
 Model Context Protocol servers/tools used during development (e.g. issue
@@ -131,6 +172,10 @@ trackers, design tools, browser automation) and what they contributed.
 - **2026-07-23 — Story 5.1:** None used. Local Docker (Compose v5.3.1) ran the
   full db+backend stack directly for real verification; no MCP servers were
   required.
+
+- **2026-07-23 — Story 5.2:** None used. Local Docker (Compose v5.3.1) ran the
+  full db+backend+frontend stack directly for real single-origin verification
+  (SPA, `/api` proxy, CRUD round-trip); no MCP servers were required.
 
 ## 3. Test-generation hits and misses
 

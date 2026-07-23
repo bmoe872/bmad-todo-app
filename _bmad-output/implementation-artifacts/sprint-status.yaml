@@ -53,6 +53,7 @@
 
 generated: 2026-07-23
 last_updated: 2026-07-23
+# note: Story 5.2 completed backlog -> ready-for-dev -> in-progress -> review -> done on 2026-07-23 (full BMAD cycle: create-story, dev-story, adversarial code-review). Frontend nginx container + single-origin `docker compose up`: multi-stage node:22 build -> nginx:stable-alpine runtime, non-root nginx (uid 101) on unprivileged port 8080, HEALTHCHECK on GET / (via wget/127.0.0.1 — fixed an IPv6-vs-IPv4 false-unhealthy), nginx.conf serves SPA (try_files fallback) + reverse-proxies /api/* to backend (path-preserving, forwards DELETE-with-body for clear-completed, no CORS per AD-10). Extended 5.1 compose with a `frontend` service depends_on backend healthy, host port 8080. Verified live: 3-service stack builds + healthy in order; SPA served, /api/health proxied 200 db:ok no-CORS, full CRUD + clear-completed DELETE-with-body round-trip through the proxy, SPA fallback; teardown clean. No app code changed; frontend 114 + backend 43 tests pass (44 pre-existing skips). Code-review clean (0 patch/0 decision-needed; 2 defers to 6.3 ops/security, 5 dismissed). Base config stays profile-free (dev/test profiles = 5.3).
 # note: Story 5.1 created backlog -> ready-for-dev on 2026-07-23 (create-story). Epic 5 -> in-progress (first story). Backend + Postgres containers: multi-stage non-root backend Dockerfile, migrate-before-serve entrypoint (AD-11), postgres:17 db on named volume pgdata with pg_isready healthcheck, backend depends_on db healthy + Dockerfile healthcheck on GET /api/health. Compose scoped to db+backend only (frontend/single-origin = 5.2, dev/test profiles = 5.3), structured for clean extension.
 # note: Story 4.2 completed ready-for-dev -> in-progress -> review -> done on 2026-07-23. Initial dev agent died mid-run (API error) after wiring the error boundary; a finishing agent (same model) added the missing BackdropBoundary test, ran the adversarial code-review in-session (no patch/decision findings; 2 items deferred to Epic 6), and verified green. Epic 4 -> done (both stories done). 114 Vitest tests pass; lint clean; build OK; `three` still isolated in lazy scene-*.js (entry index-*.js has zero three markers); coverage 94.46% stmts / 82.8% branch report-only, degradation.ts 100%.
 # note: Story 4.2 created backlog -> ready-for-dev on 2026-07-23 (create-story). Full degradation ladder, watchdog, context-loss recovery, visibility pause, error boundary. Second/last story of Epic 4.
@@ -99,7 +100,7 @@ development_status:
   # --- Epic 5: Containerized Delivery ---
   epic-5: in-progress
   5-1-backend-database-containers-with-health-checks-named-volume-and-migrate-before-serve: done
-  5-2-frontend-container-and-single-origin-docker-compose-up: backlog
+  5-2-frontend-container-and-single-origin-docker-compose-up: done
   5-3-dev-and-test-compose-profiles-with-env-var-configuration: backlog
   epic-5-retrospective: optional
 

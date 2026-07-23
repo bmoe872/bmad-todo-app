@@ -1,0 +1,26 @@
+# Keep the build context small and reproducible. The builder stage installs
+# dependencies fresh (`npm ci`) and builds fresh (`vite build`), so the host's
+# node_modules/ and dist/ must never leak into the image. Everything the build
+# needs (package*.json, tsconfig.json, vite.config.ts, index.html, src/) is NOT
+# listed here and therefore included.
+
+# Installed deps + build output (produced fresh inside the image)
+node_modules/
+dist/
+
+# Test / coverage artifacts (not needed for `vite build`)
+coverage/
+.vitest/
+
+# Environment / secrets (never bake into the image; build-time config is VITE_*)
+.env
+.env.*
+
+# Docker files themselves (nginx.conf is intentionally NOT ignored — the runtime
+# stage COPYs it into the image)
+Dockerfile
+.dockerignore
+
+# OS / editor cruft
+.DS_Store
+*.swp

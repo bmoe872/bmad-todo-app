@@ -1,22 +1,26 @@
 # Composed stack for nearform_todo_app.
 #
-# Story 5.1 scope: `db` (PostgreSQL 17) + `backend` (FastAPI/Uvicorn) only.
+# Full three-service stack (Stories 5.1 + 5.2): `db` (PostgreSQL 17) +
+# `backend` (FastAPI/Uvicorn) + `frontend` (nginx).
 #   - db persists to the named volume `pgdata` and gates the backend via a
 #     pg_isready healthcheck (AD-11).
 #   - backend depends on db being healthy, then migrates-before-serving (its
 #     Dockerfile ENTRYPOINT runs `alembic upgrade head` then uvicorn) and
 #     declares its own healthcheck (from the Dockerfile) on GET /api/health.
+#   - frontend (5.2) is the public entrypoint: nginx serves the built SPA and
+#     reverse-proxies /api/* to `backend`, so the browser sees ONE origin and no
+#     CORS is needed (AD-10). It depends on the backend being healthy and has its
+#     own healthcheck (from the Dockerfile) on GET /. The app is reachable at
+#     the host FRONTEND_PORT (default 8080).
 #
 # Config is 12-factor: everything is an env var with a non-secret dev default
 # (`${VAR:-default}`), so no secret values are committed. Override via a local
 # .env (gitignored) or the shell environment.
 #
 # Extension seam (do NOT add here yet):
-#   - Story 5.2 adds a `frontend` service (nginx, single-origin /api proxy,
-#     depends_on backend: service_healthy).
 #   - Story 5.3 adds `dev` / `test` compose profiles (source mounts, Vite HMR,
 #     exposed ports, CORS enabled only in dev). Base config stays profile-free
-#     so a plain `docker compose up` is the production-like stack.
+#     so a plain `docker compose up` is the production-like single-origin stack.
 
 services:
   db:
@@ -50,8 +54,30 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Host-exposed for debugging/verification. The browser does NOT use this
+    # port — it talks only to the frontend origin (single-origin, AD-10); this
+    # mapping is a developer convenience and can be dropped without affecting
+    # the app.
     ports:
       - "${BACKEND_PORT:-8000}:8000"
+    networks:
+      - appnet
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    # Single-origin public entrypoint (AD-10): nginx serves the SPA and proxies
+    # /api/* to `backend` over the internal network. Comes up only after the
+    # backend is healthy so proxied /api calls succeed immediately.
+    depends_on:
+      backend:
+        condition: service_healthy
+    # Map the host port to nginx's unprivileged in-container port 8080 (nginx
+    # runs non-root; see frontend/Dockerfile + nginx.conf). The healthcheck on
+    # GET / comes from the Dockerfile HEALTHCHECK.
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
     networks:
       - appnet
     restart: unless-stopped
