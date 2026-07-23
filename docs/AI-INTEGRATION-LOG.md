@@ -1,9 +1,76 @@
 # AI Integration Log — nearform_todo_app
 
-This log records how AI assistance was used to build this project. It is seeded in
-Story 1.1 and appended to incrementally as each story is delivered, then finalized
-in Story 6.4. Each section below accumulates dated entries over the life of the
-project; keep entries concise, concrete, and honest (including where AI fell short).
+This log records how AI assistance was used to build this project. It was seeded in
+Story 1.1 and appended to incrementally as each story was delivered, then finalized
+here in **Story 6.4**. The dated entries in each section below were written as the
+work happened; the **Synthesis** section immediately below was added at
+finalization to summarize the build as a whole. Entries are concise, concrete, and
+honest — including where AI fell short and where a human/orchestrator had to own the
+call.
+
+---
+
+## 0. Synthesis (finalized, Story 6.4)
+
+**What was built, and how.** A minimal single-user Todo app (React+Vite+three.js
+SPA · layered FastAPI · PostgreSQL, single-origin via Docker Compose) delivered
+through the full BMAD spec-driven flow: brief → PRD → UX → architecture spine →
+epics/stories → implementation-readiness → sprint plan → per-story build. Each of
+the 20 stories ran the same cycle — `create-story` (assemble full context) →
+`dev-story` (implement) → `code-review` (adversarial: Blind Hunter / Edge Case
+Hunter / Acceptance Auditor) — and only then flipped to `done` in
+`sprint-status.yaml`.
+
+**The multi-agent execution model (the biggest process lesson).** Independent
+stories were frequently built **in parallel by separate AI agents in isolated git
+worktrees** (e.g. 2.2/2.3, 3.2/3.3/3.4, 6.2/6.3), then merged by an orchestrating
+agent one level up. This genuinely increased throughput, but it surfaced a hard
+constraint: **sub-agents could not themselves spawn sub-agents**, so all
+parallelism had to be orchestrated exactly one level up, and the orchestrator owned
+every merge. Merges succeeded cleanly when the parallel stories had been partitioned
+onto **disjoint files** up front (6.2 owned CI/coverage config, 6.3 owned
+nginx/Dockerfiles/docs → conflict-free); they required careful human/orchestrator
+judgment when they touched shared files (`todos.py` router ordering, `global.css`,
+`Panel.tsx` slot composition) — CSS in particular interleaved badly and had to be
+reconstructed rather than resolved hunk-by-hunk. Each worktree also had to rebuild
+its own gitignored `.venv` / `node_modules`.
+
+**Resilience to agent failure.** On **Story 4.2** the initial dev agent **died
+mid-run on an API error**, right after wiring the backdrop error boundary, leaving
+the work uncommitted with no boundary test and no review. Because it had left a
+clean, lint-passing tree and a detailed story file, a separate finishing agent
+resumed **deterministically** — reading the uncommitted diff plus the story's Dev
+Notes was enough context to complete only the missing pieces (the boundary test) and
+run the review in-session, without re-doing or losing work.
+
+**Verification first-hand, not relayed.** The through-line of this build is that
+claims were verified by **actually running** the code, not by trusting a summary.
+The bugs that mattered most were ones a static read would have passed: the
+`nginx:stable-alpine` healthcheck failing because `localhost` resolved to IPv6 `::1`
+while nginx bound IPv4 only (Story 5.2); the `test` Dockerfile stage inheriting the
+prod `ENTRYPOINT` and silently running `alembic upgrade head` against the wrong DSN
+(5.3); Playwright's `.check()` double-toggling a label-wrapped checkbox (6.1). None
+were app bugs the reviewer flagged on sight — all only appeared when the stack and
+suites were run for real.
+
+**Honest limitations of the environment.** Two are worth stating plainly:
+- **No browser / GPU tooling.** Some checks the activity spec frames as measurements
+  were necessarily **design-analysis** here: live-GPU ~60fps backdrop behavior, the
+  in-browser CSP console check, and 200%-zoom visual proof were argued from the code
+  and CSS, not benchmarked. These are labeled as such in `docs/qa/` and never
+  presented as numbers we didn't measure.
+- **MCP servers named in the spec were not actually used.** The activity spec
+  suggests Postman MCP (API-contract validation), Chrome DevTools MCP (performance),
+  and mentions Playwright. In practice **no MCP servers were used**: API contracts
+  were validated with pytest integration tests + `curl`, performance with direct
+  latency probes through the proxy, and **Playwright was driven directly** (not via
+  a Playwright MCP). The MCP columns in the per-story §2 entries are therefore
+  honestly "None used."
+
+**CI caveat.** A GitHub Actions workflow (`.github/workflows/ci.yml`) exists and
+invokes the same Makefile targets a developer runs, but this environment has no
+GitHub remote — it was validated locally by running every command CI invokes, and
+no claim is made that it "passed on GitHub."
 
 ---
 
@@ -212,6 +279,39 @@ agents/workflows, what they produced, and how their output was reviewed.
   axe-with-Backdrop-active (Epics 3/4) and Playwright-against-the-composed-app
   (Story 5.3).
 
+- **2026-07-23 — Stories 6.2 & 6.3 (coverage gate + security/perf/a11y pass, built
+  in parallel):** Two Epic 6 stories run concurrently in isolated worktrees, each a
+  full BMAD cycle, then merged by the orchestrator. **6.2** flipped the coverage
+  gate from report-only to **enforcing ≥70% branch coverage** (pyproject
+  `--cov-fail-under` + Makefile, and Vitest `coverage.thresholds.branches`), and the
+  orchestrator re-ran both gates first-hand to confirm (backend 96.76%, frontend
+  85.35% branch with the test-profile integration suite running; a deliberate
+  negative check at a 99% threshold correctly exited non-zero). **6.3** produced the
+  three documented QA passes in `docs/qa/` — no High/Critical security findings (XSS
+  inert, injection parameterized, CORS correct, `npm audit` clean), applied nginx
+  security headers + a dynamic-DNS resolver + base-image digest pins, and measured
+  API p95 < 7ms through the proxy. The two stories were partitioned onto **disjoint
+  files** (6.2 owned CI/coverage config, 6.3 owned nginx/Dockerfiles/docs) so the
+  merge was conflict-free.
+
+- **2026-07-23 — Story 6.4 (README + AI-integration log — THIS story, finalization):**
+  Final story of the project; full BMAD cycle (`create-story` → `dev-story` →
+  `code-review`) with **no application code changed**. Replaced the Story-1.1 README
+  stub with a complete, accurate `README.md` (what the app is; the `docker compose
+  up` prod path + dev/test profiles; how to run every test suite + the coverage
+  gate; env-var configuration; an API-contract summary; project structure; a
+  "how BMAD guided the build" section; links to `docs/qa/` and this log; and a
+  success-criteria cross-check with honest caveats), and **finalized this log** by
+  adding the Synthesis section above without rewriting the incremental entries.
+  Every command documented in the README was **verified first-hand** before being
+  written down (see §4): backend `pytest` (43 passed / 44 integration skipped with
+  no test DB), `ruff` clean, backend coverage gate passing at 80.88% on the unit
+  suite alone, frontend Vitest (118 passed / 15 files), eslint + `tsc` clean,
+  frontend branch coverage 85.35% passing, `docker compose config` valid for all
+  three profiles, and the live single-origin stack answering `200
+  {"status":"ok","db":"ok"}` through the nginx `/api` proxy on `:8080`. The
+  developer's running stack on `:8080` was never disturbed.
+
 ## 2. MCP usage
 
 Model Context Protocol servers/tools used during development (e.g. issue
@@ -248,6 +348,16 @@ trackers, design tools, browser automation) and what they contributed.
   and headless Playwright/Chromium drove the browser directly for real E2E + axe
   verification; no MCP servers (e.g. Chrome DevTools MCP) were required — that
   deeper performance instrumentation is Story 6.3's scope.
+
+- **2026-07-23 — Stories 6.2, 6.3, 6.4:** None used. This is worth stating plainly
+  as a spec-vs-reality note, since the activity spec suggested specific MCP servers:
+  **Postman MCP** (API-contract validation) — not used; contracts were validated by
+  pytest integration tests and `curl`. **Chrome DevTools MCP** (performance) — not
+  used; latency was probed directly through the nginx proxy and GPU/fps behavior was
+  design-analysis (no browser/GPU tooling available). **Playwright** — used
+  **directly** (the `@playwright/test` runner + `@axe-core/playwright`), NOT via any
+  Playwright MCP server. Across the entire build, **no MCP servers were used**; all
+  external interaction was local Docker, local runners, and `curl`.
 
 ## 3. Test-generation hits and misses
 
@@ -574,3 +684,19 @@ calls that a human owned.
   Verification residuals honestly labeled: in-browser CSP console check and
   live-GPU 60fps were design-analysis (no browser/GPU tooling in harness), not
   fabricated measurements.
+
+- **2026-07-23 — Story 6.4 (documentation sign-off):** The judgment a human/
+  orchestrator owns here is **accuracy and honesty of the documentation** — the one
+  place where an AI is most tempted to overstate. Three calls were made
+  deliberately rather than by default: (1) every run/test command in the README was
+  executed first-hand before being documented, and the numbers written down are the
+  ones observed (e.g. the backend gate passing at 80.88% on the unit suite alone
+  with integration skipped, distinct from the 96.76% figure that requires the
+  test-profile Postgres — both stated, neither conflated); (2) the CI status is
+  reported as "present but not run on GitHub" because this environment has no remote,
+  rather than implying a green pipeline; (3) the MCP servers the spec names
+  (Postman / Chrome DevTools / Playwright MCP) are documented as **not used** rather
+  than papered over. Finalizing this log meant **synthesizing without rewriting**:
+  the incremental per-story entries are the primary-source record and were left
+  intact; the human owns the call that a summary added on top must not contradict or
+  quietly "improve" what those entries actually reported at the time.
