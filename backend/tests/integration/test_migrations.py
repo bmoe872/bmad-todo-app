@@ -33,7 +33,14 @@ def test_alembic_upgrade_then_downgrade_cycle() -> None:
 
     current = _run_alembic("current")
     assert current.returncode == 0
-    assert "0001_baseline" in current.stdout
+    # head is now the todos revision (Story 2.1); the baseline is in the chain.
+    assert "0002_create_todos" in current.stdout
 
     down = _run_alembic("downgrade", "base")
     assert down.returncode == 0, f"downgrade failed:\n{down.stdout}\n{down.stderr}"
+
+    # Restore the schema to head so sibling integration tests (which rely on the
+    # feature tables via the session-scoped schema fixture) are not left without
+    # a schema regardless of collection order.
+    restore = _run_alembic("upgrade", "head")
+    assert restore.returncode == 0, f"restore failed:\n{restore.stdout}\n{restore.stderr}"

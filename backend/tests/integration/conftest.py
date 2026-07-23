@@ -14,7 +14,10 @@ is skipped with a clear reason — never faked green.
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -24,6 +27,8 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.main import create_app
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
@@ -71,6 +76,32 @@ def engine() -> Iterator[Engine]:
     eng = create_engine(TEST_DATABASE_URL, pool_pre_ping=True, future=True)
     yield eng
     eng.dispose()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _migrated_schema() -> Iterator[None]:
+    """Bring the test DB schema to head once for the whole integration suite.
+
+    The per-test ``db_session`` fixture only provides DML isolation (its
+    transaction is rolled back); it does not create tables. So the feature
+    schema (the ``todos`` table, Story 2.1) must exist before any test opens its
+    transaction. We run the real migration via a subprocess so the fixture also
+    exercises ``alembic upgrade head`` end-to-end. Skipped honestly when no test
+    Postgres is reachable (the collection hook already skips the items).
+    """
+    if not _REACHABLE:
+        yield
+        return
+    env = dict(os.environ, DATABASE_URL=TEST_DATABASE_URL)
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=BACKEND_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, f"alembic upgrade head failed:\n{result.stderr}"
+    yield
 
 
 @pytest.fixture()

@@ -53,6 +53,20 @@ agents/workflows, what they produced, and how their output was reviewed.
   cleanly (exit 0) and the negative check confirmed an injected lint error fails
   the invoked command (non-zero exit).
 
+- **2026-07-23 — Story 2.1 (Todo model, list, and create endpoints):** Ran the
+  BMAD story cycle (`create-story` → `dev-story` → `code-review`). The agent
+  authored the full backend slice for the first Todo endpoints: the SQLAlchemy
+  `Todo` model (`app/db/models.py`), the additive Alembic migration
+  `0002_create_todos` (pgcrypto + `todos` table with the `char_length` CHECK and
+  a `created_at DESC` index), Pydantic schemas with the single shared
+  description-validation rule (`app/schemas/todo.py`), the repository chokepoint
+  (`app/repositories/todo_repo.py`, AD-2/AD-9), the domain service
+  (`app/services/todo_service.py`), and the `GET`/`POST /api/todos` routes. Model
+  ↔ migration parity was verified by an empty `--autogenerate` diff. 39 new tests
+  (17 unit + 22 integration) were generated and run against a throwaway
+  `postgres:17` container on :5433; whole-suite result 50 passed at 96% branch
+  coverage (report-only), ruff clean.
+
 ## 2. MCP usage
 
 Model Context Protocol servers/tools used during development (e.g. issue
@@ -67,6 +81,9 @@ trackers, design tools, browser automation) and what they contributed.
 
 - **2026-07-23 — Story 1.3:** None used. Local Docker mirrored the CI Postgres
   service container for validation; no MCP servers were required.
+
+- **2026-07-23 — Story 2.1:** None used. A standalone `postgres:17` container
+  on :5433 provided the integration-test database; no MCP servers were required.
 
 ## 3. Test-generation hits and misses
 
@@ -96,6 +113,18 @@ redundant, or missed cases (misses) and needed human correction.
   pointed at the Postgres 17 service mirror — validating that the workflow's
   service-container wiring exercises the real integration path rather than
   silently skipping it.
+
+- **2026-07-23 — Story 2.1:** Hits — schema-validation unit tests (trim, empty,
+  whitespace, control-char/newline, 500/501 boundary, length-measured-on-trimmed)
+  and the endpoint integration tests (201 + persisted row, 422 envelope with
+  zero rows created, `created_at DESC` ordering with id tiebreak, Z-suffixed
+  timestamps) were generated correctly. Miss caught by the agent — the Story 1.2
+  transactional-rollback fixture provides DML isolation but does NOT create
+  tables, and the pre-existing `test_migrations.py` ends at `downgrade base`
+  (empty schema), which would drop `todos` for any later test depending on
+  collection order. Fixed by adding a session-scoped `alembic upgrade head`
+  schema fixture in the integration `conftest.py` and restoring head at the end
+  of the migration test, making the suite order-independent.
 
 ## 4. AI-debugging cases
 
@@ -156,3 +185,17 @@ calls that a human owned.
   GitHub; validation was limited to YAML well-formedness, pinned action/version
   correctness, and running every invoked command locally exactly as CI would.
   No claim is made that the pipeline "passed on GitHub".
+
+- **2026-07-23 — Story 2.1:** Two correctness/security calls a human owns.
+  (1) Validation is defined once in `app/schemas/todo.py` (`validate_description`)
+  and the service re-asserts it as defense-in-depth so a future caller that
+  bypasses the Pydantic body model still cannot persist an invalid Todo; a human
+  owns confirming this shared rule stays the single source mirrored client-side
+  in Epic 3, and that the control-char policy (reject all C0 controls incl. tab,
+  plus DEL) matches the intended "single-line plain text" contract. (2) The wire
+  contract requires `created_at` to end in `Z`, but Pydantic v2 serializes
+  tz-aware datetimes as `+00:00`; a field serializer normalizes to `Z`. A human
+  owns confirming this presentation choice is correct and that storing/returning
+  the description as text only (never interpreted as HTML server-side) is
+  sufficient for NFR-Sec at this layer, with output escaping owned by the Epic 3
+  React client.

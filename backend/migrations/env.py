@@ -14,6 +14,9 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+# Import ORM models so they register on Base.metadata for --autogenerate.
+# (Import for side effects only; the Todo table lands in revision 0002.)
+import app.db.models  # noqa: E402,F401
 from app.core.config import get_settings
 from app.db.base import Base
 
