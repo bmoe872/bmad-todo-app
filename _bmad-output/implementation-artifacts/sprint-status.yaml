@@ -53,6 +53,8 @@
 
 generated: 2026-07-23
 last_updated: 2026-07-23
+# note: Story 4.2 completed ready-for-dev -> in-progress -> review -> done on 2026-07-23. Initial dev agent died mid-run (API error) after wiring the error boundary; a finishing agent (same model) added the missing BackdropBoundary test, ran the adversarial code-review in-session (no patch/decision findings; 2 items deferred to Epic 6), and verified green. Epic 4 -> done (both stories done). 114 Vitest tests pass; lint clean; build OK; `three` still isolated in lazy scene-*.js (entry index-*.js has zero three markers); coverage 94.46% stmts / 82.8% branch report-only, degradation.ts 100%.
+# note: Story 4.2 created backlog -> ready-for-dev on 2026-07-23 (create-story). Full degradation ladder, watchdog, context-loss recovery, visibility pause, error boundary. Second/last story of Epic 4.
 # note: Story 4.1 completed backlog -> ready-for-dev -> in-progress -> review -> done on 2026-07-23 (full BMAD cycle: create-story, dev-story, clean code-review). Epic 4 -> in-progress (first story). Isolated code-split three.js cube-star backdrop; `three` verified out of the entry bundle (separate lazy scene-*.js chunk). 90 Vitest tests, 97.22% stmts/86.79% branch (report-only), lint clean, build OK.
 # note: Story 3.5 completed backlog -> ready-for-dev -> in-progress -> review -> done on 2026-07-23 (full BMAD cycle: create-story, dev-story, clean code-review). Epic 3 -> done (all 5 stories done).
 # note: Story 3.1 completed ready-for-dev -> in-progress -> review -> done on 2026-07-23 (full BMAD cycle). Epic 3 -> in-progress (first story).
@@ -88,9 +90,9 @@ development_status:
   epic-3-retrospective: optional
 
   # --- Epic 4: Space Backdrop & Graceful Degradation ---
-  epic-4: in-progress
+  epic-4: done
   4-1-isolated-three-js-cube-star-backdrop: done
-  4-2-mandatory-degradation-performance-guardrails-and-error-boundary: backlog
+  4-2-mandatory-degradation-performance-guardrails-and-error-boundary: done
   epic-4-retrospective: optional
 
   # --- Epic 5: Containerized Delivery ---

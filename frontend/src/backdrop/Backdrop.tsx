@@ -1,4 +1,5 @@
-// Backdrop — the isolated, code-split three.js cube-star field (Story 4.1, AD-8).
+// Backdrop — the isolated, code-split three.js cube-star field (Stories 4.1 +
+// 4.2, AD-8).
 //
 // Isolation contract (do not break):
 //   - Fixed, full-viewport, `aria-hidden`, `pointer-events:none` layer BELOW the
@@ -9,22 +10,48 @@
 //   - `three` is reached ONLY via a dynamic `import('./scene')`, so it is
 //     code-split out of the entry bundle and mounts AFTER the loop is interactive.
 //
-// Degradation delivered here (the FULL ordered ladder — watchdog, visibility
-// pause, error boundary — is Story 4.2):
+// Degradation delivered here (host side of the AD-8 ladder; the frame-budget
+// watchdog + context-loss recovery live in `scene.ts`):
 //   - prefers-reduced-motion: reduce → render a single static frame, no loop.
+//     ALSO responds if the OS setting is toggled at runtime (media-query change).
 //   - No WebGL / context creation fails → swallow and leave the CSS
 //     `surface-void → surface-void-far` gradient showing (the base fallback).
+//   - Tab hidden (`visibilitychange`) → pause the loop; visible again → resume,
+//     so a backgrounded tab burns no CPU/GPU.
+//   - A synchronous / React-surfaced throw is caught by <BackdropBoundary> at the
+//     mount point (App.tsx) → falls back to the static gradient, loop intact.
 
 import { useEffect, useRef } from 'react';
 
 import type { CubeStarField } from './scene';
 
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+type MotionListener = (event: MediaQueryListEvent) => void;
+
+/** The reduced-motion MediaQueryList, or null where `matchMedia` is unavailable. */
+function reducedMotionQuery(): MediaQueryList | null {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return null;
+  return window.matchMedia(REDUCED_MOTION_QUERY);
+}
+
 function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  );
+  return reducedMotionQuery()?.matches ?? false;
+}
+
+// Cross-browser change subscription. Modern browsers use addEventListener;
+// older Safari (<14) only has the deprecated addListener. No-op if neither
+// exists — the setting is then read once at mount and never throws.
+function subscribeMotion(mql: MediaQueryList | null, fn: MotionListener): void {
+  if (!mql) return;
+  if (typeof mql.addEventListener === 'function') mql.addEventListener('change', fn);
+  else if (typeof mql.addListener === 'function') mql.addListener(fn);
+}
+
+function unsubscribeMotion(mql: MediaQueryList | null, fn: MotionListener): void {
+  if (!mql) return;
+  if (typeof mql.removeEventListener === 'function') mql.removeEventListener('change', fn);
+  else if (typeof mql.removeListener === 'function') mql.removeListener(fn);
 }
 
 export function Backdrop() {
@@ -36,12 +63,35 @@ export function Backdrop() {
 
     let cancelled = false;
     let field: CubeStarField | null = null;
-    const staticOnly = prefersReducedMotion();
+    // Mutable so the runtime reduced-motion toggle can flip it after mount.
+    let staticOnly = prefersReducedMotion();
+    const mql = reducedMotionQuery();
 
     const onResize = () => {
       if (!field) return;
       field.resize();
       if (staticOnly) field.renderStaticFrame();
+    };
+
+    // Pause the loop while the tab is hidden; resume when visible. Never touch
+    // the field in static/reduced-motion mode (there is no loop to pause).
+    const onVisibilityChange = () => {
+      if (!field || staticOnly) return;
+      if (document.visibilityState === 'hidden') field.stop();
+      else field.start();
+    };
+
+    // Honor a runtime OS reduced-motion toggle: flip to a single static frame,
+    // or resume the loop, without a reload.
+    const onMotionChange = (event: MediaQueryListEvent) => {
+      staticOnly = event.matches;
+      if (!field) return;
+      if (staticOnly) {
+        field.stop();
+        field.renderStaticFrame();
+      } else {
+        field.start();
+      }
     };
 
     // Dynamic import = the code-split boundary that keeps `three` out of the
@@ -59,6 +109,8 @@ export function Backdrop() {
             field.start();
           }
           window.addEventListener('resize', onResize);
+          document.addEventListener('visibilitychange', onVisibilityChange);
+          subscribeMotion(mql, onMotionChange);
         } catch {
           // No WebGL / context creation failed → leave the CSS gradient.
           field = null;
@@ -71,6 +123,8 @@ export function Backdrop() {
     return () => {
       cancelled = true;
       window.removeEventListener('resize', onResize);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      unsubscribeMotion(mql, onMotionChange);
       field?.dispose();
       field = null;
     };

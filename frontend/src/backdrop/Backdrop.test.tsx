@@ -34,6 +34,41 @@ const { createCubeStarField, handle } = vi.hoisted(() => {
 
 vi.mock('./scene', () => ({ createCubeStarField }));
 
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+// A matchMedia mock whose `change` listeners we can fire on demand, to simulate
+// the OS reduced-motion setting being toggled at runtime.
+function mockMatchMedia(initialMatches: boolean) {
+  const listeners = new Set<(e: MediaQueryListEvent) => void>();
+  const mql = {
+    matches: initialMatches,
+    media: REDUCED_MOTION_QUERY,
+    onchange: null,
+    addEventListener: vi.fn((_type: string, fn: (e: MediaQueryListEvent) => void) =>
+      listeners.add(fn),
+    ),
+    removeEventListener: vi.fn((_type: string, fn: (e: MediaQueryListEvent) => void) =>
+      listeners.delete(fn),
+    ),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  };
+  window.matchMedia = vi.fn().mockReturnValue(mql) as unknown as typeof window.matchMedia;
+  const fire = (matches: boolean) => {
+    mql.matches = matches;
+    listeners.forEach((fn) => fn({ matches } as MediaQueryListEvent));
+  };
+  return { mql, fire };
+}
+
+// jsdom's document.visibilityState is a read-only getter; override it and fire
+// the visibilitychange event the host listens for.
+function setVisibility(state: DocumentVisibilityState) {
+  Object.defineProperty(document, 'visibilityState', { value: state, configurable: true });
+  document.dispatchEvent(new Event('visibilitychange'));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   // Default: motion allowed. jsdom has no matchMedia, so leaving it undefined
@@ -45,6 +80,8 @@ beforeEach(() => {
 afterEach(() => {
   // @ts-expect-error - clean up any per-test matchMedia override
   delete window.matchMedia;
+  // Restore default visibility so a per-test override never leaks.
+  Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
 });
 
 describe('Backdrop (isolated three.js cube-star field)', () => {
@@ -121,5 +158,76 @@ describe('Backdrop (isolated three.js cube-star field)', () => {
     await Promise.resolve();
     expect(createCubeStarField).not.toHaveBeenCalled();
     expect(handle.dispose).not.toHaveBeenCalled();
+  });
+});
+
+describe('Backdrop — visibility pause/resume (Story 4.2, AD-8)', () => {
+  it('pauses the loop when the tab is hidden and resumes when visible', async () => {
+    render(<Backdrop />);
+    await waitFor(() => expect(handle.start).toHaveBeenCalledTimes(1));
+    handle.stop.mockClear();
+    handle.start.mockClear();
+
+    setVisibility('hidden');
+    expect(handle.stop).toHaveBeenCalledTimes(1);
+    expect(handle.start).not.toHaveBeenCalled();
+
+    setVisibility('visible');
+    expect(handle.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not pause/resume when in reduced-motion (static) mode — no loop to touch', async () => {
+    mockMatchMedia(true); // reduced motion → static frame, no loop
+    render(<Backdrop />);
+    await waitFor(() => expect(handle.renderStaticFrame).toHaveBeenCalledTimes(1));
+    handle.stop.mockClear();
+    handle.start.mockClear();
+
+    setVisibility('hidden');
+    setVisibility('visible');
+    expect(handle.stop).not.toHaveBeenCalled();
+    expect(handle.start).not.toHaveBeenCalled();
+  });
+
+  it('removes the visibilitychange listener on unmount (no leak)', async () => {
+    const { unmount } = render(<Backdrop />);
+    await waitFor(() => expect(handle.start).toHaveBeenCalledTimes(1));
+    unmount();
+    handle.stop.mockClear();
+
+    // After unmount the listener must be gone — the event is a no-op.
+    setVisibility('hidden');
+    expect(handle.stop).not.toHaveBeenCalled();
+  });
+});
+
+describe('Backdrop — runtime reduced-motion toggle (Story 4.2, UX-DR16)', () => {
+  it('stops the loop and renders a static frame when motion becomes reduced at runtime', async () => {
+    const { fire } = mockMatchMedia(false); // start with motion allowed → loop runs
+    render(<Backdrop />);
+    await waitFor(() => expect(handle.start).toHaveBeenCalledTimes(1));
+    handle.renderStaticFrame.mockClear();
+
+    fire(true); // user turns ON reduce-motion in the OS
+    expect(handle.stop).toHaveBeenCalledTimes(1);
+    expect(handle.renderStaticFrame).toHaveBeenCalledTimes(1);
+  });
+
+  it('resumes the loop when motion becomes allowed again at runtime', async () => {
+    const { fire } = mockMatchMedia(true); // start reduced → static only
+    render(<Backdrop />);
+    await waitFor(() => expect(handle.renderStaticFrame).toHaveBeenCalledTimes(1));
+    expect(handle.start).not.toHaveBeenCalled();
+
+    fire(false); // user turns OFF reduce-motion in the OS
+    expect(handle.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('unsubscribes the media-query change listener on unmount (no leak)', async () => {
+    const { mql } = mockMatchMedia(false);
+    const { unmount } = render(<Backdrop />);
+    await waitFor(() => expect(handle.start).toHaveBeenCalledTimes(1));
+    unmount();
+    expect(mql.removeEventListener).toHaveBeenCalledWith('change', expect.any(Function));
   });
 });

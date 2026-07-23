@@ -4,6 +4,7 @@
 // only screen.
 
 import { Backdrop } from './backdrop/Backdrop';
+import { BackdropBoundary } from './backdrop/BackdropBoundary';
 import { Footer } from './components/Footer';
 import { Panel } from './components/Panel';
 import { TodoList } from './components/TodoList';
@@ -18,7 +19,11 @@ export function App() {
 
   return (
     <>
-      <Backdrop />
+      {/* AD-8: the error boundary contains any backdrop failure so it can never
+          take down the core loop (which lives in the sibling <main>). */}
+      <BackdropBoundary>
+        <Backdrop />
+      </BackdropBoundary>
       <main className="orbit-app">
         <Panel
           footerSlot={<Footer onClear={clear.clear} error={clear.error} />}

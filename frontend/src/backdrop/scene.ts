@@ -15,11 +15,23 @@
 // transparent canvas (the CSS `surface-void → surface-void-far` gradient shows
 // through and is the no-WebGL fallback). Near cubes read brighter/larger
 // (star-cube #8FB2FF), far cubes dimmer/smaller (star-cube-dim #39456E), so the
-// field reads as depth, not noise. Density/DPR here use static, conservative
-// caps; the adaptive frame-budget watchdog and the full degradation ladder are
-// Story 4.2.
+// field reads as depth, not noise.
+//
+// Story 4.2 adds the runtime guardrails on top of the 4.1 field: an adaptive
+// frame-budget watchdog that steps DOWN quality on sustained jank (DPR → cube
+// count → static, via the pure decider in `degradation.ts`), and WebGL
+// context-loss/restore handling. The ordered ladder and never-degrade-core
+// invariant are AD-8; frame rate is always sacrificed before the core loop.
 
 import * as THREE from 'three';
+
+import {
+  DEGRADATION_LADDER,
+  nextDegradationStep,
+  reducedCount,
+  reducedDprCap,
+  type WatchdogState,
+} from './degradation';
 
 export interface CubeStarField {
   /** Begin the animation loop (no-op if already running or if static). */
@@ -37,10 +49,17 @@ export interface CubeStarField {
 export interface CubeStarOptions {
   /** Number of cube "stars". Kept modest for the calm, subtle look + perf. */
   count?: number;
-  /** Cap on device-pixel-ratio (static guardrail; adaptive step-down is 4.2). */
+  /** Initial cap on device-pixel-ratio; the watchdog steps this DOWN under jank. */
   maxPixelRatio?: number;
   /** Drift speed in world units per second (slow + calm). */
   driftSpeed?: number;
+  /**
+   * Called once the watchdog has exhausted the ladder and frozen the field to a
+   * static frame, or when the WebGL context is lost and cannot be restored. The
+   * host may ignore it — the CSS void gradient is always the base layer — but it
+   * lets the React layer react (e.g. tidy state) if it wants to. Never throws.
+   */
+  onFallback?: () => void;
 }
 
 // Palette from tokens.css — bright (near) → dim (far).
@@ -61,8 +80,12 @@ export function createCubeStarField(
   options: CubeStarOptions = {},
 ): CubeStarField {
   const count = options.count ?? 220;
-  const maxPixelRatio = options.maxPixelRatio ?? 2;
   const driftSpeed = options.driftSpeed ?? 1.6;
+  const onFallback = options.onFallback;
+
+  // DPR cap starts at the requested max and is lowered by the watchdog (step 1
+  // of the ladder). `mesh.count` (below) is the visible-cube knob (step 2).
+  let dprCap = options.maxPixelRatio ?? 2;
 
   // alpha:true keeps the canvas transparent so the void gradient shows through
   // and remains the fallback. antialias:false + low-power favor the core loop.
@@ -139,7 +162,7 @@ export function createCubeStarField(
   function resize() {
     const w = canvas.clientWidth || window.innerWidth;
     const h = canvas.clientHeight || window.innerHeight;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxPixelRatio));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, dprCap));
     renderer.setSize(w, h, false);
     camera.aspect = h > 0 ? w / h : 1;
     camera.updateProjectionMatrix();
@@ -149,6 +172,37 @@ export function createCubeStarField(
   let rafId = 0;
   let running = false;
   let lastT = 0;
+  let contextLost = false;
+
+  // --- Frame-budget watchdog (AD-8 degradation ladder) --------------------
+  // `visibleCount` is the step-2 knob: lowering `mesh.count` draws fewer cubes
+  // without reallocating buffers (capacity stays `count`). `dprCap` (above) is
+  // step 1. `frameSamples` is a rolling window of recent frame durations (ms)
+  // fed to the PURE decider; after each applied step we clear it so the change
+  // is re-measured before the next step can fire.
+  let visibleCount = count;
+  const watchdog: WatchdogState = { stepsTaken: 0 };
+  const frameSamples: number[] = [];
+  const SAMPLE_CAP = 60;
+  let lastFrameMs = 0;
+
+  function applyDegradation(action: (typeof DEGRADATION_LADDER)[number]) {
+    if (action === 'reduce-dpr') {
+      dprCap = reducedDprCap(dprCap);
+      resize();
+    } else if (action === 'reduce-count') {
+      visibleCount = reducedCount(visibleCount, count);
+      mesh.count = visibleCount;
+    } else {
+      // 'fallback-static': stop animating and leave one frozen frame (the void
+      // gradient still shows through). Never stutter; the core loop wins.
+      stop();
+      renderStaticFrame();
+      onFallback?.();
+    }
+    watchdog.stepsTaken += 1;
+    frameSamples.length = 0; // re-measure under the new setting before stepping again
+  }
 
   function step(nowMs: number) {
     if (!running) return;
@@ -157,7 +211,7 @@ export function createCubeStarField(
     lastT = now;
 
     let colorsDirty = false;
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < visibleCount; i++) {
       // Drift toward the camera (increasing z). Recycle to the far plane once
       // a cube passes NEAR_Z, so the field is infinite and cheap.
       posZ[i] += driftSpeed * dt;
@@ -172,13 +226,31 @@ export function createCubeStarField(
     if (colorsDirty && mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 
     renderer.render(scene, camera);
+
+    // Sample this frame's wall-clock duration and let the watchdog decide.
+    // Skip the first frame (no previous timestamp → bogus delta).
+    if (lastFrameMs) {
+      frameSamples.push(nowMs - lastFrameMs);
+      if (frameSamples.length > SAMPLE_CAP) frameSamples.shift();
+      const decision = nextDegradationStep(watchdog, frameSamples);
+      if (decision !== 'hold') {
+        applyDegradation(decision);
+        if (decision === 'fallback-static') {
+          lastFrameMs = nowMs;
+          return; // loop stopped inside applyDegradation; do not reschedule
+        }
+      }
+    }
+    lastFrameMs = nowMs;
+
     rafId = requestAnimationFrame(step);
   }
 
   function start() {
-    if (running) return;
+    if (running || contextLost) return;
     running = true;
     lastT = 0;
+    lastFrameMs = 0;
     rafId = requestAnimationFrame(step);
   }
 
@@ -189,11 +261,43 @@ export function createCubeStarField(
   }
 
   function renderStaticFrame() {
+    if (contextLost) return;
     renderer.render(scene, camera);
   }
 
+  // --- WebGL context loss / restore (AD-8) --------------------------------
+  // The GPU can yank the context at any time (driver reset, tab throttling,
+  // power event). Preventing the default on `lost` lets the browser fire a
+  // `restored` event; until then we stop cleanly so we never render into a dead
+  // context. three's renderer re-initializes its GPU resources on restore.
+  let wasRunningBeforeLoss = false;
+
+  function handleContextLost(event: Event) {
+    event.preventDefault();
+    wasRunningBeforeLoss = running;
+    contextLost = true;
+    stop();
+  }
+
+  function handleContextRestored() {
+    contextLost = false;
+    resize();
+    if (wasRunningBeforeLoss) {
+      start();
+    } else {
+      renderStaticFrame();
+    }
+  }
+
+  canvas.addEventListener('webglcontextlost', handleContextLost);
+  canvas.addEventListener('webglcontextrestored', handleContextRestored);
+
   function dispose() {
     stop();
+    // Remove our context listeners BEFORE forceContextLoss below, so our own
+    // teardown-triggered `webglcontextlost` doesn't re-enter the handlers.
+    canvas.removeEventListener('webglcontextlost', handleContextLost);
+    canvas.removeEventListener('webglcontextrestored', handleContextRestored);
     geometry.dispose();
     material.dispose();
     // InstancedMesh disposes its own buffers via the renderer's info; drop it

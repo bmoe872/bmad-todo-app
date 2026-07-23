@@ -330,3 +330,40 @@ calls that a human owned.
   tests, up from 83; 97.22% stmts / 86.79% branch, report-only — `backdrop/**`
   stays excluded from coverage per config as device-dependent visual tuning),
   lint clean, production build OK with the verified lazy `three` chunk.
+
+- **2026-07-23 — Story 4.2 (mandatory degradation, perf guardrails, error
+  boundary):** The final Epic 4 story, and the first with a mid-run agent
+  failure worth logging. The initial dev agent implemented ~90% of the story —
+  the pure `degradation.ts` ladder decider (DPR → cube-count → static, with
+  hysteresis + floors), the `scene.ts` watchdog + WebGL context-loss/restore
+  wiring, the `Backdrop.tsx` visibility-pause and runtime reduced-motion toggle,
+  the `BackdropBoundary` class component wired into `App.tsx`, and the extended
+  `Backdrop.test.tsx` / `degradation.test.ts` — then **died on an API error**
+  right at "Now the BackdropBoundary test", leaving the work UNCOMMITTED with no
+  boundary test, no code-review, and status still `in-progress`. A separate
+  finishing agent (same model) picked up the uncommitted tree, read the diff and
+  the AD-8 spine, and completed only the missing pieces rather than rebuilding:
+  it wrote `BackdropBoundary.test.tsx` (throwing child is caught, the fallback
+  renders nothing/non-interactive, a sibling core-loop stand-in survives — the
+  AC6/AC7 never-degrade-core proof), then ran the adversarial code-review lenses
+  (Blind Hunter / Edge Case Hunter / Acceptance Auditor) IN-SESSION because
+  subagents aren't available in that harness. The review surfaced no blocking or
+  should-fix findings — the prior implementation was sound as-found — and two
+  legitimate Epic-6 deferrals: the watchdog budget is hardcoded to a ~60fps
+  target (a 30Hz / power-saver display would degrade toward static; safe
+  direction, but real-device calibration is Story 6.3) and live-GPU
+  context-loss / real-FPS behaviour can't be exercised under jsdom (asserted via
+  the pure decider + mocked scene handle; live proof + axe-with-backdrop defer to
+  6.3 / 6.1). Test-generation hit: the AC5 watchdog decision is a PURE function
+  over simulated frame-time arrays, so it unit-tests to 100% stmt/branch under
+  jsdom with zero WebGL — the `vitest.config.ts` coverage exclusion was narrowed
+  from all of `src/backdrop/**` to just the device-dependent `scene.ts`, pulling
+  the decider, host, and boundary INTO coverage. Verification (Node 22 via nvm):
+  full suite green (114 Vitest tests, up from 90), lint clean, build OK, and the
+  AD-8/AC8 isolation re-confirmed quantitatively — `three` still lands only in
+  the lazy `scene-*.js` (520.88 kB / 130.81 kB gz) with ZERO three markers in the
+  entry `index-*.js` (238.10 kB / 74.25 kB gz). Process lesson: because the prior
+  agent left a clean, lint-passing working tree and a detailed story file, a
+  fresh agent could resume deterministically from a hard API failure without
+  losing or re-doing work — the uncommitted diff plus the story's Dev Notes were
+  enough context to finish safely.

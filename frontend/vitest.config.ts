@@ -25,8 +25,13 @@ export default defineConfig({
       all: true,
       include: ['src/**/*.{ts,tsx}'],
       // Meaningful-coverage exclusions: entrypoint, type-only modules, tests,
-      // and three.js backdrop visual tuning (cube density / DPR caps, added in
-      // Epic 4) which is device-dependent rendering code, not business logic.
+      // and the three.js scene itself — device-dependent WebGL rendering code
+      // (cube density / DPR caps / render loop) that jsdom cannot exercise, not
+      // business logic. NOTE: only `scene.ts` is excluded from the backdrop
+      // layer; the PURE degradation-ladder decision logic (`degradation.ts`),
+      // the React host (`Backdrop.tsx`) and the error boundary
+      // (`BackdropBoundary.tsx`) ARE covered — that fallback/watchdog DECISION
+      // logic is business logic and is unit-tested (Story 4.2).
       exclude: [
         'src/main.tsx',
         'src/types.ts',
@@ -34,7 +39,7 @@ export default defineConfig({
         'src/**/*.test.{ts,tsx}',
         'src/test-setup.ts',
         'src/test-utils.tsx',
-        'src/backdrop/**',
+        'src/backdrop/scene.ts',
       ],
     },
   },
