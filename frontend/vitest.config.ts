@@ -11,6 +11,10 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
+    // Process CSS imports so the design tokens are actually injected into the
+    // jsdom document and resolvable via getComputedStyle — this lets the
+    // dark-only token layer be asserted as *applied*, not just present on disk.
+    css: true,
     coverage: {
       provider: 'v8',
       reportsDirectory: './coverage',
@@ -26,8 +30,10 @@ export default defineConfig({
       exclude: [
         'src/main.tsx',
         'src/types.ts',
+        'src/**/*.d.ts',
         'src/**/*.test.{ts,tsx}',
         'src/test-setup.ts',
+        'src/test-utils.tsx',
         'src/backdrop/**',
       ],
     },

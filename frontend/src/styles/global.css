@@ -1,0 +1,242 @@
+/*
+ * Orbit base + component styles. Consumes tokens.css only — no raw hex/px here
+ * except layout primitives. Dark-only. Paired with DESIGN.md Components.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  font-family: var(--font-family-base);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  color: var(--color-ink-primary);
+  /* Plain static background: the surface-void base with a subtle
+     surface-void-far radial falloff. This is also the no-WebGL / pre-backdrop
+     fallback (AD-8). The three.js backdrop (Epic 4) mounts over this. */
+  background-color: var(--color-surface-void);
+  background-image: radial-gradient(
+    circle at 50% 38%,
+    var(--color-surface-void-far) 0%,
+    var(--color-surface-void) 78%
+  );
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Backdrop mount point (Epic 4 / Story 4.1) ----
+   Clean, isolated placeholder ONLY. Fixed, aria-hidden, non-interactive.
+   Renders nothing but the void gradient (inherited from body) today; the
+   three.js cube-star field replaces its contents later without touching the
+   loop. No `three` import, no animation in Story 3.1. */
+.orbit-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ---- App shell / layout ---- */
+.orbit-app {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  /* Float toward the upper-middle so the void reads as space around the panel. */
+  align-items: flex-start;
+  padding: clamp(var(--space-5), 12vh, 96px) var(--space-4) var(--space-6);
+}
+
+/* ---- Panel ---- */
+.orbit-panel {
+  width: 100%;
+  max-width: var(--panel-max-width);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  /* surface-scrim at ~72% opacity — the load-bearing a11y device that keeps
+     text on a near-solid field regardless of what drifts behind (DESIGN.md).
+     The opaque fallback comes first so a browser without `color-mix` still
+     gets a solid scrim (readable text) rather than transparent-over-void. */
+  background-color: var(--panel-bg);
+  background-color: color-mix(in srgb, var(--panel-bg) 72%, transparent);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--panel-radius);
+  /* One soft ambient shadow — the ONLY shadow in the product. */
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.65);
+  /* Slight blur so stars behind read as depth, not noise. */
+  backdrop-filter: blur(8px);
+}
+
+.orbit-title {
+  margin: 0;
+  font-size: var(--type-title-size);
+  font-weight: var(--type-title-weight);
+  line-height: var(--type-title-line);
+  letter-spacing: var(--type-title-tracking);
+  color: var(--color-ink-primary);
+}
+
+/* Add-input slot placeholder (real input arrives in Story 3.2). */
+.orbit-add-slot {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  padding: 0 var(--space-4);
+  font-size: var(--type-input-size);
+  line-height: var(--type-input-line);
+  color: var(--add-input-placeholder);
+  background-color: var(--add-input-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--add-input-radius);
+}
+
+/* Footer slot placeholder (real footer arrives in Story 3.4). */
+.orbit-footer-slot:empty {
+  display: none;
+}
+
+/* ---- List ---- */
+.orbit-list-region {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.orbit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Todo row (minimal read-only in Story 3.1) ---- */
+.orbit-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--todo-row-radius);
+  border-bottom: 1px solid var(--todo-row-divider);
+}
+
+.orbit-row:last-child {
+  border-bottom: none;
+}
+
+@media (hover: hover) {
+  .orbit-row:hover {
+    background-color: var(--todo-row-hover-bg);
+  }
+}
+
+.orbit-row__check {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  margin-top: 2px;
+  border: 2px solid var(--checkbox-idle-border);
+  border-radius: var(--checkbox-radius);
+  background: transparent;
+}
+
+.orbit-row__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  color: var(--todo-row-text);
+  /* Long descriptions wrap to multiple lines; never truncate user content. */
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.orbit-row__delete {
+  flex: 0 0 auto;
+  color: var(--color-ink-secondary);
+}
+
+/* ---- Skeleton rows (cold load) ---- */
+.orbit-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.orbit-skeleton__row {
+  height: 44px;
+  border-radius: var(--todo-row-radius);
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-raised) 25%,
+    var(--color-surface-raised-hover) 37%,
+    var(--color-surface-raised) 63%
+  );
+  background-size: 400% 100%;
+  animation: orbit-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes orbit-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+/* Never animate for reduced-motion users — the placeholder still shows. */
+@media (prefers-reduced-motion: reduce) {
+  .orbit-skeleton__row {
+    animation: none;
+  }
+}
+
+/* ---- Empty state ---- */
+.orbit-empty {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  font-size: var(--type-meta-size);
+  line-height: var(--type-meta-line);
+  color: var(--color-ink-secondary);
+}
+
+/* ---- Inline error ---- */
+.orbit-inline-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  font-size: var(--type-meta-size);
+  line-height: var(--type-meta-line);
+  color: var(--inline-error-text);
+}
+
+.orbit-inline-error__retry {
+  font: inherit;
+  color: var(--color-accent-strong);
+  background: none;
+  border: none;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+/* ---- Focus visibility ---- (2px ring, contrast derived from the panel) */
+:where(button, a, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}

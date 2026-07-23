@@ -67,6 +67,21 @@ agents/workflows, what they produced, and how their output was reviewed.
   `postgres:17` container on :5433; whole-suite result 50 passed at 96% branch
   coverage (report-only), ruff clean.
 
+- **2026-07-23 — Story 3.1 (Panel shell, tokens, API client, List + states):**
+  Ran the BMAD story cycle (`create-story` → `dev-story` → `code-review`). First
+  real frontend story — built on the Story 1.1 scaffold (did not recreate it).
+  The agent authored the Orbit design-token layer (`styles/tokens.css` +
+  `global.css`: the 18 colours, type/spacing/radius scales, 7 component token
+  groups, dark-only), the typed API client + one AD-5 error shape
+  (`api/client.ts`, `api/todos.ts`), the TanStack Query List hook
+  (`hooks/useTodos.ts`), the floating translucent Panel with placeholder
+  add-input/footer slots, and the `TodoList` state machine
+  (skeleton / empty / loaded / inline-error+Retry) with minimal read-only rows.
+  Exact EXPERIENCE.md microcopy was used verbatim. A clean `aria-hidden`
+  backdrop mount point was left for Epic 4 (no three.js imported). 21 Vitest
+  tests generated and run; 100% coverage on the covered set (report-only);
+  eslint + `tsc` clean; production build succeeds. Node 22.23.1 (nvm).
+
 ## 2. MCP usage
 
 Model Context Protocol servers/tools used during development (e.g. issue
@@ -125,6 +140,19 @@ redundant, or missed cases (misses) and needed human correction.
   collection order. Fixed by adding a session-scoped `alembic upgrade head`
   schema fixture in the integration `conftest.py` and restoring head at the end
   of the migration test, making the suite order-independent.
+
+- **2026-07-23 — Story 3.1 (frontend):** Hits — the four List states, the
+  Retry→refetch transition, newest-first order preservation, long-description
+  wrapping, and XSS-safety (an `<img onerror>` description asserted to render as
+  literal text with no real `<img>` element created) were all covered with a
+  mocked API/query layer (`vi.mock('../api/todos')`) and no real network. Miss
+  the agent had to correct: the first attempt asserted the dark-only token layer
+  by importing the CSS as a `?raw` string, but Vitest stubs CSS imports so the
+  raw content came back empty; and reading the file via `node:fs` failed `tsc`
+  (no `@types/node`, which is out of scope to add). Resolved by enabling Vitest
+  `css: true` and asserting the tokens are actually *applied* — injected into the
+  jsdom document and resolvable via `getComputedStyle(:root)` — a stronger check
+  than string-matching the source file.
 
 ## 4. AI-debugging cases
 

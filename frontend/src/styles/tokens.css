@@ -1,0 +1,121 @@
+/*
+ * Orbit design tokens — the single source of visual truth (UX-DR1).
+ * Encoded verbatim from DESIGN.md front-matter. Dark-only: there is no light
+ * theme and no `prefers-color-scheme` alternate (resolved human decision).
+ * Components consume these variables; concrete hex/px values live ONLY here.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* --- Colors (18) --- */
+  --color-surface-void: #070a14;
+  --color-surface-void-far: #0b1020;
+  --color-surface-scrim: #0e1324;
+  --color-surface-raised: #161c31;
+  --color-surface-raised-hover: #1e2540;
+  --color-ink-primary: #eef1fa;
+  --color-ink-secondary: #a7afc8;
+  --color-ink-completed: #727c99;
+  --color-ink-disabled: #525a74;
+  --color-accent: #7aa8ff;
+  --color-accent-strong: #9cc0ff;
+  --color-accent-ink: #07122b;
+  --color-border-hairline: #242b45;
+  --color-border-focus: #9cc0ff;
+  --color-danger: #ff8a8a;
+  --color-danger-ink: #2a0e0e;
+  --color-star-cube: #8fb2ff;
+  --color-star-cube-dim: #39456e;
+
+  /* --- Typography --- */
+  /* One family; hierarchy comes from size + weight, never a second typeface.
+     system-ui fallback carries first paint so the core loop never waits on a
+     webfont (no webfont linked in v1). */
+  --font-family-base: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --type-title-size: 22px;
+  --type-title-weight: 600;
+  --type-title-line: 1.2;
+  --type-title-tracking: -0.01em;
+
+  --type-input-size: 17px;
+  --type-input-weight: 400;
+  --type-input-line: 1.4;
+
+  --type-body-size: 16px;
+  --type-body-weight: 400;
+  --type-body-line: 1.45;
+
+  --type-meta-size: 13px;
+  --type-meta-weight: 400;
+  --type-meta-line: 1.4;
+
+  --type-button-size: 14px;
+  --type-button-weight: 500;
+  --type-button-line: 1;
+  --type-button-tracking: 0.01em;
+
+  /* --- Rounded (corner radius) --- */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-full: 9999px;
+
+  /* --- Spacing scale (4 / 8 / 12 / 16 / 24 / 32 / 48) --- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-panel-max: 560px;
+
+  /* --- Component tokens (resolved from DESIGN.md `components:`) --- */
+  /* Only panel / todo-row / inline-error / skeleton are exercised in Story 3.1;
+     the rest are defined so 3.2 (add-input), 3.3 (checkbox/delete),
+     3.4 (button-clear / toast-undo) slot in without touching this file. */
+
+  /* panel */
+  --panel-bg: var(--color-surface-scrim);
+  --panel-bg-opacity: 0.72;
+  --panel-radius: var(--radius-lg);
+  --panel-border: var(--color-border-hairline);
+  --panel-max-width: var(--space-panel-max);
+
+  /* add-input (Story 3.2) */
+  --add-input-bg: var(--color-surface-raised);
+  --add-input-text: var(--color-ink-primary);
+  --add-input-placeholder: var(--color-ink-secondary);
+  --add-input-radius: var(--radius-md);
+  --add-input-focus-ring: var(--color-border-focus);
+
+  /* todo-row */
+  --todo-row-text: var(--color-ink-primary);
+  --todo-row-text-completed: var(--color-ink-completed);
+  --todo-row-hover-bg: var(--color-surface-raised-hover);
+  --todo-row-radius: var(--radius-sm);
+  --todo-row-divider: var(--color-border-hairline);
+
+  /* checkbox (Story 3.3) */
+  --checkbox-idle-border: var(--color-ink-secondary);
+  --checkbox-checked-bg: var(--color-accent);
+  --checkbox-checked-mark: var(--color-accent-ink);
+  --checkbox-radius: var(--radius-sm);
+  --checkbox-focus-ring: var(--color-border-focus);
+
+  /* button-clear (Story 3.4) */
+  --button-clear-text: var(--color-ink-secondary);
+  --button-clear-text-hover: var(--color-ink-primary);
+  --button-clear-radius: var(--radius-sm);
+
+  /* toast-undo (Story 3.4) */
+  --toast-undo-bg: var(--color-surface-raised);
+  --toast-undo-text: var(--color-ink-primary);
+  --toast-undo-action: var(--color-accent-strong);
+  --toast-undo-radius: var(--radius-md);
+
+  /* inline-error */
+  --inline-error-text: var(--color-danger);
+}

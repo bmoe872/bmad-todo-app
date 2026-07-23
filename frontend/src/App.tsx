@@ -1,12 +1,21 @@
-// Placeholder page for Story 1.1. The real panel shell, design tokens, API
-// client, and Todo list view arrive in Epic 3. This trivial component gives the
-// Vitest and Playwright runners something real to render and load.
-// [ASSUMPTION: frontend renders a placeholder page until Epic 3.]
+// Composition root for the Orbit single screen. Thin by design: it lays out the
+// backdrop placeholder behind the floating Panel and mounts the List. No login,
+// signup, or onboarding is ever rendered (FR-4) — the List is the first and
+// only screen.
+
+import { Backdrop } from './backdrop/Backdrop';
+import { Panel } from './components/Panel';
+import { TodoList } from './components/TodoList';
+
 export function App() {
   return (
-    <main>
-      <h1>nearform_todo_app</h1>
-      <p>Frontend scaffold is running. Todo experience arrives in Epic 3.</p>
-    </main>
+    <>
+      <Backdrop />
+      <main className="orbit-app">
+        <Panel>
+          <TodoList />
+        </Panel>
+      </main>
+    </>
   );
 }
