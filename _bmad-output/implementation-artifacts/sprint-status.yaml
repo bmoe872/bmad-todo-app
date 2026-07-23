@@ -53,6 +53,7 @@
 
 generated: 2026-07-23
 last_updated: 2026-07-23
+# note: Story 4.1 completed backlog -> ready-for-dev -> in-progress -> review -> done on 2026-07-23 (full BMAD cycle: create-story, dev-story, clean code-review). Epic 4 -> in-progress (first story). Isolated code-split three.js cube-star backdrop; `three` verified out of the entry bundle (separate lazy scene-*.js chunk). 90 Vitest tests, 97.22% stmts/86.79% branch (report-only), lint clean, build OK.
 # note: Story 3.5 completed backlog -> ready-for-dev -> in-progress -> review -> done on 2026-07-23 (full BMAD cycle: create-story, dev-story, clean code-review). Epic 3 -> done (all 5 stories done).
 # note: Story 3.1 completed ready-for-dev -> in-progress -> review -> done on 2026-07-23 (full BMAD cycle). Epic 3 -> in-progress (first story).
 # note: Story 2.1 completed ready-for-dev -> in-progress -> review -> done on 2026-07-23 (full BMAD cycle). Epic 2 -> in-progress (first story).
@@ -87,8 +88,8 @@ development_status:
   epic-3-retrospective: optional
 
   # --- Epic 4: Space Backdrop & Graceful Degradation ---
-  epic-4: backlog
-  4-1-isolated-three-js-cube-star-backdrop: backlog
+  epic-4: in-progress
+  4-1-isolated-three-js-cube-star-backdrop: done
   4-2-mandatory-degradation-performance-guardrails-and-error-boundary: backlog
   epic-4-retrospective: optional
 

@@ -35,10 +35,17 @@ describe('App shell', () => {
     expect(screen.getByTestId('skeleton-rows')).toBeInTheDocument();
   });
 
-  it('mounts the backdrop as an aria-hidden, non-interactive placeholder (no three.js)', () => {
+  it('mounts the backdrop as an aria-hidden, non-interactive isolated layer (Story 4.1)', () => {
     renderWithClient(<App />);
     const backdrop = screen.getByTestId('backdrop');
     expect(backdrop).toHaveAttribute('aria-hidden', 'true');
-    expect(backdrop).toBeEmptyDOMElement();
+    expect(backdrop).toHaveClass('orbit-backdrop');
+    // The backdrop now owns a <canvas> the three.js field mounts into (no longer
+    // an empty placeholder), but it stays aria-hidden and exposes no interactive
+    // / tab-focusable nodes. In jsdom (no WebGL) the field init fails silently and
+    // the void gradient shows — the app must not throw. Full backdrop lifecycle is
+    // covered in backdrop/Backdrop.test.tsx.
+    expect(backdrop.querySelector('canvas')).not.toBeNull();
+    expect(backdrop.querySelector('button, a, input, [tabindex]')).toBeNull();
   });
 });

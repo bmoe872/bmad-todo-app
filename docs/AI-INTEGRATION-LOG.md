@@ -286,3 +286,47 @@ calls that a human owned.
   flipping the coverage gate to enforcing (6.2). Full suite green post-change
   (83 Vitest tests, up from 56; 97.22% stmts / 86.79% branch, report-only), lint
   clean, production build OK. Epic 3 is now complete.
+
+- **2026-07-23 — Story 4.1 (isolated three.js cube-star Backdrop):** First Epic 4
+  story, run by a single AI agent through the full BMAD cycle (create-story,
+  dev-story, code-review). The signature delighter — a slow-drifting field of
+  cube "stars" over the deep-space void — built as a strictly isolated,
+  code-split layer per AD-8. What worked: putting ALL `three` usage in one
+  framework-free module (`backdrop/scene.ts`, a `createCubeStarField` factory
+  exposing `start/stop/resize/renderStaticFrame/dispose`) and reaching it from
+  `Backdrop.tsx` ONLY via a dynamic `import('./scene')` inside an effect. The
+  build confirmed the isolation quantitatively: `three` (r185) lands entirely in
+  a separate lazy chunk `scene-*.js` (~520 kB / 130 kB gzip) with ZERO three
+  markers in the entry `index-*.js` (~237 kB / 74 kB gzip) — the core loop paints
+  without it. The rAF loop lives inside the scene module, outside React's render
+  cycle (no per-frame re-render, reads no Todo data); cubes drift toward the
+  camera on an InstancedMesh and recycle to the far plane (infinite, cheap), with
+  near=bright/large → far=dim/small from the `star-cube` tokens for depth. The
+  ~72% scrim panel already guarantees the readability contract, so no
+  scene-side "keep cubes off text" logic was needed. Test-generation hits: the
+  isolation/lifecycle contract is fully assertable under jsdom by mocking the
+  scene module — mount-after-async-import (code-split proof), aria-hidden +
+  non-interactive, no data props, clean dispose on unmount, the reduced-motion
+  guard (static frame, no loop), the no-WebGL degrade-without-throw path, and the
+  unmount-before-import async race. AI-debugging cases the agent owned itself:
+  (1) two legacy tests hard-coded the old placeholder contract
+  (`toBeEmptyDOMElement()` on the backdrop) in `App.test.tsx` and `a11y.test.tsx`
+  — updated to the new "owns a canvas but exposes no focusable/interactive nodes"
+  contract; (2) jsdom's unimplemented `HTMLCanvasElement.getContext` printed noisy
+  "Not implemented" errors when the real scene probed for WebGL — stubbed
+  `getContext` to return `null` in `test-setup.ts`, which is exactly the no-WebGL
+  environment the fallback must handle, making it deterministic and quiet; (3) a
+  three-way TS typing snag on the Vitest mock (spread args / tuple index /
+  unused-param lint) resolved with `vi.hoisted` + a typed `vi.fn` signature.
+  jsdom/WebGL limitation owned by the agent and deferred to Epic 6: jsdom has no
+  WebGL and does no layout, so real cube rendering, ~60fps drift, and the
+  interaction-latency budget are NOT proven here — they land in the Story 6.3
+  performance pass, with axe-with-backdrop-active in Story 6.1. Deliberately left
+  for Story 4.2 (structured so they bolt on cleanly): the full ordered
+  degradation ladder (adaptive DPR→cube-count→static frame-budget watchdog), the
+  `visibilitychange` pause, and a React error boundary around the backdrop; 4.1
+  ships only a static DPR cap and a basic reduced-motion / no-WebGL guard, and
+  keeps the 3.1 void-gradient as the base fallback. Full suite green (90 Vitest
+  tests, up from 83; 97.22% stmts / 86.79% branch, report-only — `backdrop/**`
+  stays excluded from coverage per config as device-dependent visual tuning),
+  lint clean, production build OK with the verified lazy `three` chunk.

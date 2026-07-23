@@ -183,8 +183,11 @@ describe('a11y — keyboard reading order + no focus traps (AC1, AC2)', () => {
     await screen.findByRole('list');
     const backdrop = screen.getByTestId('backdrop');
     expect(backdrop).toHaveAttribute('aria-hidden', 'true');
-    expect(backdrop).toBeEmptyDOMElement();
     expect(backdrop).not.toHaveAttribute('tabindex');
+    // Story 4.1: the backdrop owns a decorative <canvas> for the three.js field,
+    // but it stays aria-hidden and exposes no tab-focusable / interactive nodes,
+    // so it remains out of the tab order and invisible to assistive tech.
+    expect(backdrop.querySelector('button, a, input, [tabindex]')).toBeNull();
   });
 });
 
