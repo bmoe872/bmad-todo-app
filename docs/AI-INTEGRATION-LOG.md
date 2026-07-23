@@ -150,6 +150,40 @@ agents/workflows, what they produced, and how their output was reviewed.
   upstream; base images pinned by tag not digest). Left for Story 5.3: `dev`/`test`
   compose profiles — base config kept profile-free so a plain `docker compose up`
   is the production-like single-origin stack.
+- **2026-07-23 — Story 5.3 (Dev & test compose profiles + env-var config):** Final
+  Epic 5 story; full BMAD cycle (`create-story` → `dev-story` → `code-review`) with
+  no application code changed. EXTENDED (did not rewrite) `docker-compose.yml` with
+  two additive Compose `profiles:` on top of the profile-free base: a **dev**
+  profile (`backend-dev` + `frontend-dev`) and a **test** profile (`db-test` +
+  `backend-test`), plus new `dev`/`test` build stages in each Dockerfile,
+  `server.host`/env-gated polling in `vite.config.ts`, and 12-factor env docs
+  (new root `.env.example`, updated backend/frontend examples). The agent worked
+  through a genuine Docker Compose design tension: the story required BOTH a
+  profile-free default (`docker compose up` = prod) AND profiles that "replace"
+  services for dev — but a no-profile service always starts, so a naive
+  `--profile dev up` port-clashes the prod `backend` and `backend-dev` on :8000.
+  Resolved WITHOUT a hack by leaning on `docker compose up SERVICE…` semantics
+  (starts only named services + their `depends_on`): the documented dev command
+  `docker compose --profile dev up backend-dev frontend-dev` brings up exactly
+  db + the two dev services, never the prod pair — verified live. CORS-on-in-dev
+  (AD-10) fell out of existing code for free: `app/main.py` already adds the CORS
+  middleware only when `CORS_ORIGINS` is non-empty, so the whole feature is one
+  env var on `backend-dev` (dev) vs unset (prod) — no code change. VERIFIED FOR
+  REAL (Docker 29.6.2 / Compose v5.3.1): default stack still healthy with the prod
+  backend preflight returning `405` and **no `Access-Control-*`** header; the dev
+  stack showed WatchFiles reloading on a source `touch` and returned
+  `access-control-allow-origin: http://localhost:5173` on both an OPTIONS preflight
+  and a GET, with Vite serving `/@vite/client` + `/@react-refresh` for HMR; and the
+  test profile finally **closed the long-standing 44-skip gap** — `pytest
+  tests/integration` went from *44 skipped* to *44 passed* against the ephemeral
+  tmpfs `db-test` on :5433 (the exact DSN the existing `conftest.py` defaults to,
+  so zero test-code changes), the full backend suite passing 87 both on the host
+  venv and in the in-container `backend-test` runner. Teardown `-v` left zero
+  containers/volumes; frontend 114 Vitest + lint clean; ruff clean. Code review
+  (in-session Blind Hunter / Edge Case Hunter / Acceptance Auditor lenses): 0 patch,
+  0 decision-needed, 1 defer (Playwright under the test profile → Story 6.1), 2
+  dismissed (the bare-`--profile dev up` clash is documented/by-design; the
+  `backend-dev` `LOG_LEVEL=debug` default is intentional). Epic 5 is DONE.
 
 ## 2. MCP usage
 
@@ -176,6 +210,11 @@ trackers, design tools, browser automation) and what they contributed.
 - **2026-07-23 — Story 5.2:** None used. Local Docker (Compose v5.3.1) ran the
   full db+backend+frontend stack directly for real single-origin verification
   (SPA, `/api` proxy, CRUD round-trip); no MCP servers were required.
+
+- **2026-07-23 — Story 5.3:** None used. Local Docker (Compose v5.3.1) ran the
+  default, `dev`, and `test` profiles directly for real verification (CORS
+  preflight/headers via `curl`, WatchFiles reload, the integration suite against
+  the compose test Postgres); no MCP servers were required.
 
 ## 3. Test-generation hits and misses
 
@@ -256,6 +295,20 @@ what broke, how AI helped, and the resolution.
   project venv, validated the YAML with the system Ruby's built-in `yaml`
   library instead (confirmed jobs `backend`/`frontend`/`build-images` and
   triggers `push`/`pull_request` parse correctly).
+
+- **2026-07-23 — Story 5.3:** The in-container `backend-test` runner failed at
+  startup trying to connect to `localhost:5432` even though its `TEST_DATABASE_URL`
+  correctly pointed at `db-test:5432`. The clue in the logs was the line
+  `entrypoint: applying database migrations (alembic upgrade head)` — proof the
+  prod `docker-entrypoint.sh` was running. Root cause: the `test` Dockerfile stage
+  is `FROM runtime`, so it INHERITS the runtime stage's `ENTRYPOINT`; Docker then
+  passed the pytest `command:` as mere args to that entrypoint, which ignores its
+  args and runs its own hardcoded `alembic upgrade head` against the default DSN
+  (`localhost:5432`). Fixed by overriding `entrypoint: ["python","-m","pytest"]`
+  on the `backend-test` service (the integration suite migrates its own DB via the
+  `_migrated_schema` fixture using `TEST_DATABASE_URL`). Only surfaced because the
+  runner was actually executed — a static read of the compose `command:` would
+  have looked correct. After the fix: 87 passed in-container.
 
 ## 5. Limitations — where human expertise was critical
 

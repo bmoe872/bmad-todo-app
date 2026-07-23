@@ -17,10 +17,29 @@
 # (`${VAR:-default}`), so no secret values are committed. Override via a local
 # .env (gitignored) or the shell environment.
 #
-# Extension seam (do NOT add here yet):
-#   - Story 5.3 adds `dev` / `test` compose profiles (source mounts, Vite HMR,
-#     exposed ports, CORS enabled only in dev). Base config stays profile-free
-#     so a plain `docker compose up` is the production-like single-origin stack.
+# Profiles (Story 5.3): the base `db`/`backend`/`frontend` services are
+# PROFILE-FREE, so a plain `docker compose up` is the production-like
+# single-origin stack (no CORS, AD-10). Two additive profiles layer developer
+# and CI concerns on top WITHOUT touching that default path:
+#
+#   dev  → `backend-dev` + `frontend-dev`: source bind-mounts + live reload
+#          (uvicorn --reload, Vite HMR), host ports 8000/5173, and CORS enabled
+#          ONLY here (AD-10) so the cross-origin Vite dev server (:5173) can call
+#          the backend (:8000). Recommended command (starts only the dev
+#          services + their `db` dependency, so it never clashes with the prod
+#          `backend`/`frontend` on port 8000):
+#              docker compose --profile dev up backend-dev frontend-dev
+#
+#   test → `db-test`: an EPHEMERAL (tmpfs, no named volume) Postgres published on
+#          host :5433 — exactly the DSN `backend/tests/integration/conftest.py`
+#          expects — so the transactional-rollback integration suite runs against
+#          a compose-managed DB. `backend-test` is a one-shot in-container runner:
+#              docker compose --profile test up -d db-test         # host-venv path
+#              docker compose --profile test run --rm backend-test  # CI path
+#
+# Config is 12-factor: every value is an env var with a non-secret default
+# (`${VAR:-default}`), no secret is committed. See `.env.example` (root),
+# `backend/.env.example`, and `frontend/.env.example`.
 
 services:
   db:
@@ -44,6 +63,10 @@ services:
   backend:
     build:
       context: ./backend
+      # Pin the prod stage explicitly: the Dockerfile now also defines later
+      # `dev`/`test` stages (Story 5.3), so `runtime` is no longer the last
+      # stage and must be named to keep this the slim prod image.
+      target: runtime
     environment:
       # SQLAlchemy 2.0 + psycopg 3 sync DSN. Host is the `db` service name on the
       # internal network (NOT localhost). Credentials mirror the db service.
@@ -67,6 +90,9 @@ services:
   frontend:
     build:
       context: ./frontend
+      # Pin the prod nginx stage: the Dockerfile now also defines a later `dev`
+      # (Vite) stage (Story 5.3), so `runtime` must be named to stay the default.
+      target: runtime
     # Single-origin public entrypoint (AD-10): nginx serves the SPA and proxies
     # /api/* to `backend` over the internal network. Comes up only after the
     # backend is healthy so proxied /api calls succeed immediately.
@@ -81,6 +107,134 @@ services:
     networks:
       - appnet
     restart: unless-stopped
+
+  # ---- dev profile (Story 5.3) -------------------------------------------
+  # Live-reload developer stack. Never started by a bare `docker compose up`
+  # (profiled). Start with: `docker compose --profile dev up backend-dev frontend-dev`
+  # — that starts only these two + their `db` dependency, so the prod `backend`
+  # (also host :8000) is NOT started and there is no port clash.
+  backend-dev:
+    profiles: ["dev"]
+    build:
+      context: ./backend
+      target: dev
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-todo}:${POSTGRES_PASSWORD:-todo}@db:5432/${POSTGRES_DB:-todo}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      # CORS ON in dev ONLY (AD-10): the Vite dev server (:5173) is a DIFFERENT
+      # origin from the backend (:8000), so the browser needs CORS here. Prod
+      # stays single-origin with CORS_ORIGINS unset.
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+    depends_on:
+      db:
+        condition: service_healthy
+    # Bind-mount the source so uvicorn --reload picks up edits live. Only the
+    # code + migration assets are mounted (not the whole context), so the venv
+    # baked into the image is preserved.
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/migrations:/app/migrations
+      - ./backend/alembic.ini:/app/alembic.ini
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    # Migrate-before-serve, then hot-reload. Overrides the prod entrypoint
+    # (which runs uvicorn WITHOUT --reload). watchfiles is baked into the `dev`
+    # image stage for efficient reloads.
+    entrypoint:
+      - sh
+      - -c
+      - alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/app
+    networks:
+      - appnet
+    restart: unless-stopped
+
+  frontend-dev:
+    profiles: ["dev"]
+    build:
+      context: ./frontend
+      target: dev
+    depends_on:
+      backend-dev:
+        condition: service_started
+    environment:
+      # The browser at :5173 calls the backend origin directly (cross-origin →
+      # CORS, enabled on backend-dev above). In prod this is unset and the SPA
+      # uses the same-origin "/api" nginx proxy instead (AD-10).
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api}
+      # Poll for file changes so HMR works over the bind mount on Docker Desktop.
+      VITE_DEV_POLLING: ${VITE_DEV_POLLING:-1}
+    # Bind-mount the source for HMR, but keep the container's LINUX node_modules
+    # (anonymous volume) — the host node_modules is darwin/arm and would break
+    # esbuild/rollup in the linux container.
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "${FRONTEND_DEV_PORT:-5173}:5173"
+    networks:
+      - appnet
+    restart: unless-stopped
+
+  # ---- test profile (Story 5.3) ------------------------------------------
+  # Ephemeral throwaway Postgres for the suites (transactional-rollback
+  # integration tests, AD/Testing decision). tmpfs-backed: no data survives, no
+  # named volume, fully isolated from the prod `db`/`pgdata`.
+  db-test:
+    profiles: ["test"]
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-todo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-todo}
+      POSTGRES_DB: ${POSTGRES_DB:-todo}
+    # Throwaway storage — the data dir lives in RAM and vanishes on teardown.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-todo} -d ${POSTGRES_DB:-todo}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    # Publish on host :5433 — the exact DSN backend/tests/integration/conftest.py
+    # defaults to (TEST_DATABASE_URL=...@localhost:5433/todo), so the host venv
+    # runs the integration suite with zero conftest changes.
+    ports:
+      - "${TEST_DB_PORT:-5433}:5432"
+    networks:
+      - appnet
+
+  # One-shot in-container test runner for CI. Run with:
+  #   docker compose --profile test run --rm backend-test
+  backend-test:
+    profiles: ["test"]
+    build:
+      context: ./backend
+      target: test
+    environment:
+      # Reach the ephemeral DB by service name on the internal network.
+      TEST_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-todo}:${POSTGRES_PASSWORD:-todo}@db-test:5432/${POSTGRES_DB:-todo}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      db-test:
+        condition: service_healthy
+    # tests/ is omitted from the prod image, so mount it (plus source + migration
+    # assets the fixtures import / migrate).
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/tests:/app/tests
+      - ./backend/migrations:/app/migrations
+      - ./backend/alembic.ini:/app/alembic.ini
+      - ./backend/pyproject.toml:/app/pyproject.toml
+    working_dir: /app
+    # Override the prod migrate-before-serve ENTRYPOINT (inherited from the
+    # `runtime` stage) so pytest runs directly. The integration suite migrates
+    # the test DB itself via the `_migrated_schema` fixture (using
+    # TEST_DATABASE_URL), so the prod entrypoint's localhost migration must not
+    # run here.
+    entrypoint: ["python", "-m", "pytest"]
+    command: ["tests", "-q"]
+    networks:
+      - appnet
 
 volumes:
   pgdata:

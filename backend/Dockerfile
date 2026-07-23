@@ -66,3 +66,31 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
     CMD python -c "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health', timeout=4).status == 200 else 1)"
 
 ENTRYPOINT ["docker-entrypoint.sh"]
+
+# ---- Stage 3: dev (Story 5.3, dev profile only) --------------------------
+# Extends the prod runtime with the fast file-watcher so `uvicorn --reload`
+# reloads on efficient inotify events instead of the polling fallback. The prod
+# `runtime` stage above is the DEFAULT final stage, so a bare `docker build`
+# (and the profile-free compose) still produces the slim prod image WITHOUT
+# watchfiles. The dev service (compose `backend-dev`) bind-mounts the source and
+# overrides the entrypoint to migrate-then-`uvicorn --reload`.
+FROM runtime AS dev
+
+USER root
+RUN pip install --no-cache-dir "watchfiles>=0.24,<2"
+USER appuser
+
+# ---- Stage 4: test (Story 5.3, test profile only) ------------------------
+# Extends the prod runtime with the test toolchain (mirrors the pyproject `dev`
+# extra: pytest/pytest-cov/httpx; alembic + sqlalchemy are already runtime deps
+# the integration fixtures use). The `backend-test` compose service bind-mounts
+# `tests/` (omitted from the prod image) and runs pytest against the ephemeral
+# `db-test` Postgres. Runs as root: the throwaway CI runner needs to import the
+# bind-mounted tests without host/container uid friction.
+FROM runtime AS test
+
+USER root
+RUN pip install --no-cache-dir \
+    "pytest>=8,<9" \
+    "pytest-cov>=5,<7" \
+    "httpx>=0.27,<0.29"

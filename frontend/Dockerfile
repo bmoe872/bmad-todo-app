@@ -59,3 +59,25 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=5 \
 
 # Default CMD from the base image (`nginx -g 'daemon off;'`) is correct for a
 # foreground container.
+
+# ---- Stage 3: dev (Story 5.3, dev profile only) --------------------------
+# Runs the Vite dev server with HMR instead of the nginx static build. Installs
+# LINUX-native deps via `npm ci` so esbuild/rollup/vite binaries match the
+# container arch — the host `node_modules` (darwin) must NEVER be bind-mounted
+# over this (the `frontend-dev` compose service uses an anonymous volume at
+# /app/node_modules to preserve it). The nginx `runtime` stage above stays the
+# DEFAULT final stage, so a bare `docker build ./frontend` (and the profile-free
+# compose, which pins `target: runtime`) still produces the prod nginx image.
+FROM node:22-slim AS dev
+
+WORKDIR /app
+
+# Install from the committed lockfile for a reproducible dev toolchain.
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Source is bind-mounted by compose for HMR; this only needs node + node_modules.
+EXPOSE 5173
+
+# --host 0.0.0.0 so the mapped port is reachable from the host browser.
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
