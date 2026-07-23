@@ -63,14 +63,18 @@ test-backend: ## Run backend pytest
 test-frontend: ## Run frontend Vitest
 	cd $(FRONTEND) && npm run test
 
-# ---- coverage (branch; report-only until Story 6.2) ----
+# ---- coverage (branch; ENFORCING >=70% meaningful gate, Story 6.2) ----
 
-coverage: coverage-backend coverage-frontend ## Run both suites with branch coverage
+coverage: coverage-backend coverage-frontend ## Run both suites with branch coverage (fails <70%)
 
-coverage-backend: ## Backend pytest with branch coverage (report-only)
-	cd $(BACKEND) && ../$(VENV)/bin/python -m pytest --cov=app --cov-report=term-missing --cov-report=xml
+coverage-backend: ## Backend pytest with branch coverage (fails if <70%)
+	# --cov-branch enables branch measurement; --cov-fail-under mirrors the
+	# pyproject fail_under so the gate holds no matter how pytest is invoked.
+	cd $(BACKEND) && ../$(VENV)/bin/python -m pytest --cov=app --cov-branch --cov-fail-under=70 --cov-report=term-missing --cov-report=xml
 
-coverage-frontend: ## Frontend Vitest with v8 branch coverage (report-only)
+coverage-frontend: ## Frontend Vitest with v8 branch coverage (fails if <70%)
+	# `vitest run --coverage` reads coverage.thresholds.branches (>=70) from
+	# vitest.config.ts and exits non-zero when the branch gate is not met.
 	cd $(FRONTEND) && npm run coverage
 
 # ---- lint ----

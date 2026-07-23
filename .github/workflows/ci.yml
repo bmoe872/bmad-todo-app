@@ -4,10 +4,10 @@ name: CI
 # CI-agnostic root Makefile targets (see ./Makefile) — the same commands a
 # developer runs locally — so no test/lint logic is duplicated in this workflow.
 #
-# Scope (Story 1.3): lint -> unit + integration tests -> coverage (REPORT-ONLY;
-# the >=70% meaningful-coverage gate is enforced in Story 6.2) -> build both
-# Docker images (build only). The full compose-backed E2E suite is exercised in
-# Epic 6, not here.
+# Scope: lint -> unit + integration tests -> coverage (ENFORCING; the pipeline
+# FAILS if meaningful branch coverage drops below 70% — Story 6.2 flipped this
+# from the report-only gate wired in Story 1.3) -> build both Docker images
+# (build only). The full compose-backed E2E suite is exercised in Epic 6, not here.
 
 on:
   push:
@@ -69,7 +69,7 @@ jobs:
       - name: Lint (ruff)
         run: make lint-backend
 
-      - name: Unit + integration tests with branch coverage (report-only)
+      - name: Unit + integration tests with branch coverage (gate >=70%)
         run: make coverage-backend
 
       - name: Upload backend coverage report
@@ -101,7 +101,7 @@ jobs:
       - name: Lint (eslint + tsc)
         run: make lint-frontend
 
-      - name: Unit tests with v8 branch coverage (report-only)
+      - name: Unit tests with v8 branch coverage (gate >=70%)
         run: make coverage-frontend
 
       - name: Upload frontend coverage report
