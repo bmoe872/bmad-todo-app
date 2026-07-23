@@ -9,7 +9,11 @@
 # compiler toolchain is needed — the image stays slim.
 
 # ---- Stage 1: builder ----------------------------------------------------
-FROM python:3.12-slim AS builder
+# Base pinned by DIGEST (supply-chain hardening, Story 6.3 security pass) so the
+# build is reproducible and immune to a mutated `python:3.12-slim` tag. The tag
+# is kept in the comment for human readability; refresh the digest deliberately
+# when bumping the base. Digest resolved for python:3.12-slim (linux, 2026-07-23).
+FROM python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de AS builder
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -30,7 +34,8 @@ COPY alembic.ini ./
 RUN pip install .
 
 # ---- Stage 2: runtime ----------------------------------------------------
-FROM python:3.12-slim AS runtime
+# Same digest-pinned base as the builder (see the builder-stage note).
+FROM python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de AS runtime
 
 # PYTHONUNBUFFERED so structured JSON logs flush to stdout for `docker compose logs`.
 ENV PATH="/opt/venv/bin:$PATH" \
