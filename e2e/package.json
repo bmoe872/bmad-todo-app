@@ -8,6 +8,7 @@
   },
   "scripts": {
     "test": "playwright test",
+    "test:e2e": "playwright test",
     "install-browsers": "playwright install chromium",
     "lint": "tsc --noEmit"
   },

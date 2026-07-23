@@ -17,10 +17,20 @@ VENV         := $(BACKEND)/.venv
 PY           := $(VENV)/bin/python
 PIP          := $(VENV)/bin/python -m pip
 
+# Isolated E2E stack (Story 6.1): a SEPARATE compose project name + distinct host
+# ports + its own pgdata volume, so the compose-backed Playwright run never
+# touches a default-project stack (e.g. a live inspection stack on :8080/:8000).
+E2E_PROJECT       := nftodo_e2e
+E2E_FRONTEND_PORT := 8090
+E2E_BACKEND_PORT  := 8010
+E2E_BASE_URL      := http://localhost:$(E2E_FRONTEND_PORT)
+E2E_COMPOSE       := FRONTEND_PORT=$(E2E_FRONTEND_PORT) BACKEND_PORT=$(E2E_BACKEND_PORT) \
+                     docker compose -p $(E2E_PROJECT)
+
 .DEFAULT_GOAL := help
 .PHONY: help install install-backend install-frontend install-e2e \
         test test-backend test-frontend coverage coverage-backend coverage-frontend \
-        lint lint-backend lint-frontend smoke ci clean
+        lint lint-backend lint-frontend smoke e2e e2e-up e2e-down install-e2e-browsers ci clean
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -73,14 +83,33 @@ lint-backend: ## Ruff check on the backend
 lint-frontend: ## ESLint + tsc typecheck on the frontend
 	cd $(FRONTEND) && npm run lint
 
-# ---- e2e smoke ----
+# ---- e2e (compose-backed, Story 6.1) ----
 
-smoke: ## Playwright smoke against a locally-served page (NOT docker-compose)
-	cd $(E2E) && npm run test
+install-e2e-browsers: ## Ensure the Playwright Chromium browser is installed
+	cd $(E2E) && npm run install-browsers
+
+e2e-up: ## Bring up an ISOLATED prod-like stack for E2E (own project/ports/volume)
+	$(E2E_COMPOSE) up -d --build --wait
+
+e2e-down: ## Tear down the isolated E2E stack (removes its containers + volume ONLY)
+	$(E2E_COMPOSE) down -v
+
+# Full-journey Playwright suite + @axe-core/playwright accessibility gate against
+# the isolated composed stack (frontend+backend+db). Always tears the stack down,
+# even on failure, and propagates the test exit code. This is the compose-backed
+# Playwright run the architecture's "one command reproduces CI locally" refers to.
+e2e: ## Run the Playwright E2E + a11y suite against an isolated composed stack
+	$(MAKE) e2e-up
+	cd $(E2E) && E2E_BASE_URL=$(E2E_BASE_URL) npm run test; status=$$?; \
+		cd .. && $(MAKE) e2e-down; exit $$status
+
+# Back-compat alias: `smoke` now runs the real compose-backed E2E suite (the
+# Epic-1 vite-preview placeholder smoke was retired in Story 6.1).
+smoke: e2e ## Alias for `e2e` (compose-backed Playwright + a11y run)
 
 # ---- aggregate ----
 
-ci: lint test coverage smoke ## Local mirror of the CI pipeline
+ci: lint test coverage e2e ## Local mirror of the CI pipeline (incl. compose-backed E2E)
 
 clean: ## Remove build/venv/coverage artifacts
 	rm -rf $(VENV) $(FRONTEND)/node_modules $(E2E)/node_modules \

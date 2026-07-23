@@ -185,6 +185,33 @@ agents/workflows, what they produced, and how their output was reviewed.
   dismissed (the bare-`--profile dev up` clash is documented/by-design; the
   `backend-dev` `LOG_LEVEL=debug` default is intentional). Epic 5 is DONE.
 
+- **2026-07-23 — Story 6.1 (Playwright E2E suite + automated accessibility gate):**
+  First Epic 6 story; full BMAD cycle (`create-story` → `dev-story` →
+  `code-review`) with **no application code changed** — all work landed in `e2e/`,
+  the `Makefile`, and docs. The agent built the real end-to-end suite that Epic 1
+  only scaffolded: **7 spec files / 13 tests** exercising the six mandated journeys
+  through the actual UI against a fully composed, running stack — create (FR-1),
+  complete/toggle-back in place (FR-2/FR-5), delete (FR-3), clear-completed + undo
+  with the AD-7 deferred-commit model (FR-9), empty state (FR-6), and a load +
+  action error path with reconcile (FR-7) — plus an `@axe-core/playwright`
+  accessibility gate asserting **zero critical WCAG 2.1 AA violations with the
+  three.js Backdrop ACTIVE** (loaded + loaded-empty states) and a reduced-motion
+  functional run (FR-8). The suite is deterministic: it runs against an **isolated**
+  copy of the production-like stack (a separate compose project `nftodo_e2e` on
+  host ports 8090/8010 with its own `pgdata` volume, brought up/torn down by
+  `make e2e`), never the developer's live inspection stack; a `resetState()`
+  API-level fixture empties the single global List before each test and Playwright
+  runs single-worker so specs never race on shared server state. VERIFIED FOR REAL
+  (headless Chromium, SwiftShader WebGL forced on so the Backdrop genuinely
+  initializes): **13/13 passed**, axe **0 total violations (0 critical, 0 serious)**
+  on both states with WebGL confirmed available, and `make e2e` tore the isolated
+  stack fully down (containers + volume + network) afterward while the live
+  inspection stack stayed healthy and untouched. No regressions: frontend 114
+  Vitest + eslint/tsc clean, backend 43 passed (44 integration DB-gated skips, the
+  standing baseline), e2e `tsc` clean. Closes two items previously deferred:
+  axe-with-Backdrop-active (Epics 3/4) and Playwright-against-the-composed-app
+  (Story 5.3).
+
 ## 2. MCP usage
 
 Model Context Protocol servers/tools used during development (e.g. issue
@@ -215,6 +242,12 @@ trackers, design tools, browser automation) and what they contributed.
   default, `dev`, and `test` profiles directly for real verification (CORS
   preflight/headers via `curl`, WatchFiles reload, the integration suite against
   the compose test Postgres); no MCP servers were required.
+
+- **2026-07-23 — Story 6.1:** None used. Local Docker (Compose v5.3.1) stood up an
+  isolated production-like stack (`docker compose -p nftodo_e2e` on :8090/:8010)
+  and headless Playwright/Chromium drove the browser directly for real E2E + axe
+  verification; no MCP servers (e.g. Chrome DevTools MCP) were required — that
+  deeper performance instrumentation is Story 6.3's scope.
 
 ## 3. Test-generation hits and misses
 
@@ -270,6 +303,20 @@ redundant, or missed cases (misses) and needed human correction.
   jsdom document and resolvable via `getComputedStyle(:root)` — a stronger check
   than string-matching the source file.
 
+- **2026-07-23 — Story 6.1 (E2E):** Hits — running the six journeys through the
+  real UI against a live composed stack immediately validated the optimistic +
+  reconcile paths end to end (newest-first ordering, in-place toggle without
+  reorder, AD-7 deferred commit where the server delete fires only on toast
+  dismiss and Undo is client-only, load/action-error rollback). Fault injection
+  for the error journeys used `page.route(...).abort()` to force the failure while
+  the retry/reconcile still hit the real backend — a deterministic error path that
+  is not "mocked business logic". Misses the agent had to correct (see §4):
+  Playwright's `.check()` double-toggled the label-wrapped checkbox, and a
+  keyboard toggle raced the create-reconcile refetch. Both were **test-harness**
+  bugs, not app bugs — the app behaves correctly for real users — and were fixed
+  in the specs (click the label hit-target off-center; wait for the optimistic row
+  to reconcile to its real id before toggling).
+
 ## 4. AI-debugging cases
 
 Concrete bugs or failures where AI assistance helped diagnose or fix an issue —
@@ -309,6 +356,22 @@ what broke, how AI helped, and the resolution.
   `_migrated_schema` fixture using `TEST_DATABASE_URL`). Only surfaced because the
   runner was actually executed — a static read of the compose `command:` would
   have looked correct. After the fix: 87 passed in-container.
+
+- **2026-07-23 — Story 6.1:** Two E2E specs failed with Playwright's `locator.check:
+  Clicking the checkbox did not change its state`. The clue was the DOM: the real
+  `<input type="checkbox">` is nested INSIDE its 44px `<label>` hit-target, and
+  clicking the input directly fires the toggle twice (the wrapping label forwards
+  a second synthetic click), netting no change. Reproduced/diagnosed by inspecting
+  the failing locator and the row markup rather than guessing; fixed by clicking
+  the label region offset from the centered input (`position: {x:5,y:22}`), which
+  forwards exactly one toggle — the same single-toggle a real user gets from the
+  hit area. A second, subtler failure: a keyboard `Space` toggle intermittently
+  reverted because it fired while the just-created row was still the OPTIMISTIC one
+  (`aria-labelledby="todo-text-optimistic-…"`) and the create's reconcile refetch
+  swapped the node, discarding the toggle. Fixed by waiting for the row's
+  `aria-labelledby` to no longer match `/optimistic/` (i.e. the create had
+  reconciled to its real server id) before the keyboard interaction. Both only
+  surfaced because the suite was actually executed against a live stack.
 
 ## 5. Limitations — where human expertise was critical
 
