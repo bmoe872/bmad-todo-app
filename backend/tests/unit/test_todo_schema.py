@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from app.schemas.todo import (
     MAX_DESCRIPTION_LENGTH,
     TodoCreate,
+    TodoUpdate,
     validate_description,
 )
 
@@ -86,3 +87,20 @@ def test_validate_description_helper_returns_trimmed() -> None:
 def test_validate_description_helper_raises_valueerror() -> None:
     with pytest.raises(ValueError):
         validate_description("   ")
+
+
+def test_todo_update_accepts_boolean() -> None:
+    assert TodoUpdate(completed=True).completed is True
+    assert TodoUpdate(completed=False).completed is False
+
+
+def test_todo_update_rejects_missing_field() -> None:
+    with pytest.raises(ValidationError):
+        TodoUpdate()  # type: ignore[call-arg]
+
+
+@pytest.mark.parametrize("bad", ["yes", "true", 1, 0, None])
+def test_todo_update_rejects_non_boolean(bad: object) -> None:
+    # StrictBool rejects strings, ints, and None — only real JSON booleans pass.
+    with pytest.raises(ValidationError):
+        TodoUpdate(completed=bad)  # type: ignore[arg-type]

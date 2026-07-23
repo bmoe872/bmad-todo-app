@@ -53,6 +53,24 @@ class DatabaseUnavailableError(AppError):
         )
 
 
+class NotFoundError(AppError):
+    """Raised when a requested resource does not exist (maps to 404).
+
+    Flows through ``_handle_app_error`` into the uniform AD-5 envelope with a
+    stable ``code`` ("not_found") — preferred over ``HTTPException(404)`` (which
+    would yield ``code="http_404"``) so failures stay funneled through
+    ``AppError`` like the rest of the service layer. ``message`` is overridable
+    so other resources can reuse it.
+    """
+
+    def __init__(self, message: str = "Todo not found") -> None:
+        super().__init__(
+            code="not_found",
+            message=message,
+            status_code=404,
+        )
+
+
 def _envelope(
     code: str, message: str, details: list[dict[str, str]] | None = None
 ) -> dict[str, Any]:

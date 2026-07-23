@@ -1,24 +1,36 @@
 """Unit tests for TodoService (AD-2). No DB — the repository is stubbed.
 
-Verifies the service passes the trimmed description to the repository and maps a
-bypassed-schema validation failure to the AD-5 422 envelope.
+Verifies the service passes the trimmed description to the repository, maps a
+bypassed-schema validation failure to the AD-5 422 envelope, toggles completion
+in both directions, and surfaces a not-found domain error (404) for unknown ids
+on toggle and delete.
 """
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 
-from app.core.errors import AppError
+from app.core.errors import AppError, NotFoundError
 from app.schemas.todo import TodoCreate
 from app.services.todo_service import TodoService
 
 
 class _FakeRepo:
-    """Records the description handed to create()."""
+    """Records the description handed to create() and simulates get/toggle/delete.
 
-    def __init__(self) -> None:
+    ``existing_ids`` controls which ids are treated as present: ``set_completed``
+    and ``delete`` return None/False for anything not in the set (the missing-id
+    paths the service maps to 404).
+    """
+
+    def __init__(self, existing_ids: set[uuid.UUID] | None = None) -> None:
         self.created_with: str | None = None
         self.listed = False
+        self.existing_ids = existing_ids if existing_ids is not None else set()
+        self.set_completed_args: tuple[uuid.UUID, bool] | None = None
+        self.deleted_id: uuid.UUID | None = None
 
     def create(self, description: str):
         self.created_with = description
@@ -28,10 +40,23 @@ class _FakeRepo:
         self.listed = True
         return []
 
+    def set_completed(self, todo_id: uuid.UUID, completed: bool):
+        self.set_completed_args = (todo_id, completed)
+        if todo_id not in self.existing_ids:
+            return None
+        # Echo the requested state so the service returns the updated row.
+        return {"id": todo_id, "completed": completed}
 
-def _service_with_fake_repo() -> tuple[TodoService, _FakeRepo]:
+    def delete(self, todo_id: uuid.UUID) -> bool:
+        self.deleted_id = todo_id
+        return todo_id in self.existing_ids
+
+
+def _service_with_fake_repo(
+    existing_ids: set[uuid.UUID] | None = None,
+) -> tuple[TodoService, _FakeRepo]:
     service = TodoService.__new__(TodoService)  # bypass __init__ (no real Session)
-    fake = _FakeRepo()
+    fake = _FakeRepo(existing_ids)
     service._repo = fake  # type: ignore[attr-defined]
     return service, fake
 
@@ -61,3 +86,37 @@ def test_create_todo_rejects_bypassed_invalid_description() -> None:
     assert err.code == "validation_error"
     assert err.details is not None
     assert err.details[0]["field"] == "description"
+
+
+@pytest.mark.parametrize("completed", [True, False])
+def test_toggle_todo_sets_completed_both_directions(completed: bool) -> None:
+    todo_id = uuid.uuid4()
+    service, fake = _service_with_fake_repo(existing_ids={todo_id})
+    result = service.toggle_todo(todo_id, completed)
+    assert fake.set_completed_args == (todo_id, completed)
+    assert result["completed"] is completed  # type: ignore[index]
+
+
+def test_toggle_todo_missing_id_raises_not_found() -> None:
+    service, _ = _service_with_fake_repo(existing_ids=set())
+    with pytest.raises(NotFoundError) as exc_info:
+        service.toggle_todo(uuid.uuid4(), True)
+    err = exc_info.value
+    assert err.status_code == 404
+    assert err.code == "not_found"
+
+
+def test_delete_todo_existing_returns_none() -> None:
+    todo_id = uuid.uuid4()
+    service, fake = _service_with_fake_repo(existing_ids={todo_id})
+    assert service.delete_todo(todo_id) is None
+    assert fake.deleted_id == todo_id
+
+
+def test_delete_todo_missing_id_raises_not_found() -> None:
+    service, _ = _service_with_fake_repo(existing_ids=set())
+    with pytest.raises(NotFoundError) as exc_info:
+        service.delete_todo(uuid.uuid4())
+    err = exc_info.value
+    assert err.status_code == 404
+    assert err.code == "not_found"
