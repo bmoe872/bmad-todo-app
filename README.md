@@ -1,4 +1,4 @@
-# nearform_todo_app
+# TODO APP
 
 A deliberately **minimal single-user Todo app**, built end-to-end with the
 [BMAD](#how-bmad-guided-the-build) spec-driven method to demonstrate an
