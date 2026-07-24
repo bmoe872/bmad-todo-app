@@ -316,3 +316,18 @@ How this project meets the activity-spec success criteria (with honest caveats):
 ## License
 
 Internal project — no license specified.
+
+## My own (human) notes about this process
+The BMAD approach for a todo app seems extremely like overkill. It’s taking hours to get this working when I think I could have had something done in a couple hours with a one shot prompt and some tweaks. 
+
+I’m also wondering how much this approach needs to evolve with the newer models. 
+
+In the past the way I’ve done a SDD is without a full framework involved, and instead just having AI help me write out a spec. E.g. I’ll go into claude on the web, and give it an idea that I have for how I want to do things, and the tech stack I’d like to run it with. Then I have it ask me hard questions until we get to a spec that would be worthwhile. Then after getting the spec all sorted I open a new chat within claude and have the new chat evaluate the spec for anything that could be missing. Answer a few more questions and then have it do a finalized .md file with what is necessary to complete the task. This is at least for greenfield projects like the todo app. 
+
+The BMAD approach does a lot of this, and does it more formally, but it feels like such overkill, at least with what I know now. I have a feeling this kind of spec, and then time it takes to get there, is more important for enterprise apps when working with a client, but right now it feels like it’s just chugging away at a lot of tokens. 
+
+I think what I’m more interested in is seeing how a BMAD approach is helpful in a project that has been “lived in” for a while. For example a project that was started with that approach, it has all the things, and I need to go in and add a new major feature. How much does BMAD help at that point? In my experience AI written apps seem to be easier for an AI to understand in the future if it was already architected that way.
+
+It also did things in an order I wouldn’t have expected. Normally if I was doing a project myself I would start with containerization, and then also get tests and everything running through that approach since that would be the end-all, be-all. However my BMAD approach did containerization last - I’m not entirely sure why, but I’m going to ask claude. After asking Claude I can see it was doing this to some degree, it had testing and CI harnesses built before writing anything else, and needed more to build into docker. 
+
+Something else I did with this, that might not be recommended, but I wanted to see anyways. I did this all with claude code, and had claude code run an “Orchestrator” session which was the only session I actually interacted with, and then I had claude spin up sub-agents for each of the stories within an epic that were created. I did this to have each of the agents run in parallel to try and make it run faster. We’ll see if that was a bad idea or not at the end. 
